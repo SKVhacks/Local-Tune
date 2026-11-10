@@ -60,24 +60,6 @@ class HiddenListTest {
         assertEquals(list, HiddenList.EMPTY.songs(list))
     }
 
-    @Test fun homeShelvesLoseOnlyHiddenSongCards() {
-        val picks = HomeShelf(
-            "Quick picks",
-            listOf(
-                ShelfItem("Song a", "Pritam", null, "a", null),
-                ShelfItem("Song b", "Song • Arijit Singh • 2M plays", null, "b", null),
-                ShelfItem("Skip me", "Someone", null, "skip", null),
-            ),
-        )
-        // An album card opens a page; it doesn't play on its own, so it stays.
-        val albums = HomeShelf("Albums", listOf(ShelfItem("An album", "Album • Arijit Singh", null, null, "MPREb_1")))
-        val onlyHidden = HomeShelf("Because you played", listOf(ShelfItem("Song c", "Arijit Singh", null, "c", null)))
-        val shown = hidden.shelves(listOf(picks, albums, onlyHidden))
-        assertEquals(listOf("Quick picks", "Albums"), shown.map { it.title })
-        assertEquals(listOf("a"), shown[0].items.map { it.videoId })
-        assertEquals(albums, shown[1])
-    }
-
     @Test fun historyRecordsAreFilteredForTheMixes() {
         val records = listOf(
             PlayRecord("a", "A", "Pritam", playedAt = 1),

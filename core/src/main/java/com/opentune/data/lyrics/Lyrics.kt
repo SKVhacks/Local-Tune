@@ -131,7 +131,7 @@ object LrcParser {
                 else -> VOICE_LEAD
             }
             val body = if (voiceMark != null) written.substring(voiceMark.range.last + 1) else written
-            val timedWords = parseWords(body, end, offset)
+            val timedWords = parseWords(body, start, end, offset)
             val text = WORD_TAG.replace(body, "").replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@forEachIndexed // instrumental gap marker
             lines += LyricLine(
@@ -150,10 +150,14 @@ object LrcParser {
     private val BG_LINE = Regex("""\[bg:\s*(.*)]""", RegexOption.IGNORE_CASE)
     private val VOICE_MARK = Regex("""^\s*(v1|v2|v1000)\s*:\s*""", RegexOption.IGNORE_CASE)
 
-    private fun parseWords(body: String, lineEnd: Long, offset: Long): List<LyricWord>? {
+    private fun parseWords(body: String, lineStart: Long, lineEnd: Long, offset: Long): List<LyricWord>? {
         val tags = WORD_TAG.findAll(body).toList()
-        if (tags.size < 2) return null
+        if (tags.isEmpty()) return null
         val words = mutableListOf<LyricWord>()
+        // Words before the first tag are sung from the line's own time: "[00:20]Hel[00:20.4]lo".
+        val lead = body.substring(0, tags.first().range.first)
+        if (lead.isNotBlank()) words += LyricWord(lead, lineStart, (toMs(tags.first()) - offset).coerceAtLeast(lineStart))
+        else if (tags.size < 2) return null
         tags.forEachIndexed { i, tag ->
             val textEnd = tags.getOrNull(i + 1)?.range?.first ?: body.length
             val text = body.substring(tag.range.last + 1, textEnd)

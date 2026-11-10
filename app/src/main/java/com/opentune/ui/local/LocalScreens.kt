@@ -106,9 +106,10 @@ class LocalNav(
 @Composable
 private fun rememberLibrary(): Pair<Boolean, LocalMusic.Library?> {
     val context = LocalContext.current
-    var granted by remember { mutableStateOf(LocalMusic.hasPermission(context)) }
     val library by LocalMusic.library.collectAsState()
-    LaunchedEffect(granted) { if (granted) LocalMusic.rescan(0) }
+    // Read again on every change: granting access from the prompt fills the library, which redraws this.
+    val granted = library != null || LocalMusic.hasPermission(context)
+    LaunchedEffect(granted) { if (granted && library == null) LocalMusic.rescan(0) }
     return granted to library
 }
 

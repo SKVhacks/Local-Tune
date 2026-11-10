@@ -7,11 +7,10 @@ plugins {
 
 android {
     namespace = "com.opentune"
-    // InnerTubeX's AAR is compiled against 37; targetSdk (runtime behaviour) stays 36.
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.opentune"
+        applicationId = "com.opentune.local"
         minSdk = 26
         targetSdk = 36
         versionCode = 46

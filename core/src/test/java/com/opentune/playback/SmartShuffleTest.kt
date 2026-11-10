@@ -114,8 +114,8 @@ class SmartShuffleTest {
         assertTrue(mine.canMix)
         // An album or someone else's playlist: no "Keep in playlist".
         assertNull(SmartShuffle.startList(list).playlistId)
-        // Files on the phone give the engines nothing to start from.
-        assertFalse(SmartShuffle.startList(listOf(song("${LocalMusic.PREFIX}1"), song("${LocalMusic.PREFIX}2"))).canMix)
+        // Files on the phone mix with more of the phone's own songs.
+        assertTrue(SmartShuffle.startList(listOf(song("${LocalMusic.PREFIX}1"), song("${LocalMusic.PREFIX}2"))).canMix)
         SmartShuffle.clear()
         LibraryStore.importJson(Json.parseToJsonElement("{}"))
     }

@@ -18,7 +18,7 @@ val appVersionCode = Regex("""versionCode = (\d+)""").find(appBuild)!!.groupValu
 
 android {
     namespace = "com.opentune.core"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -48,7 +48,6 @@ kotlin {
 dependencies {
     // The apps use these types directly too, so they're passed on.
     api("androidx.core:core-ktx:1.15.0")
-    api("androidx.work:work-runtime-ktx:2.10.1")
     api("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     // ---- Media playback: Media3 / ExoPlayer ----

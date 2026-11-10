@@ -1,7 +1,6 @@
 package com.opentune.data.library
 
 import com.opentune.data.history.PlayRecord
-import com.opentune.data.model.HomeShelf
 import com.opentune.data.model.Song
 import java.util.Locale
 import kotlinx.serialization.Serializable
@@ -74,26 +73,6 @@ data class HiddenList(
 
     fun records(list: List<PlayRecord>): List<PlayRecord> =
         if (isEmpty) list else list.filterNot { hides(it.videoId, it.artist) }
-
-    /**
-     * Home's shelves without hidden songs. Only song cards are checked: an
-     * album or playlist card is something to open, not something that plays
-     * on its own. A shelf left empty goes.
-     */
-    fun shelves(list: List<HomeShelf>): List<HomeShelf> {
-        if (isEmpty) return list
-        return list.mapNotNull { shelf ->
-            val kept = shelf.items.filterNot { item ->
-                item.videoId != null && item.browseId == null &&
-                    hides(item.videoId, item.subtitle.substringBefore(" • "))
-            }
-            when {
-                kept.size == shelf.items.size -> shelf
-                kept.isEmpty() -> null
-                else -> shelf.copy(items = kept)
-            }
-        }
-    }
 
     companion object {
         val EMPTY = HiddenList()

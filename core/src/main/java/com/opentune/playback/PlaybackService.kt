@@ -724,6 +724,30 @@ class PlaybackService : MediaLibraryService() {
                 val gain = ReplayGain.trackGainDb(format.metadata)
                 if (gain != null) replayGain[id] = gain else replayGain.remove(id)
                 applyLoudness()
+                // What Signal path and the quality label show as the source: the file and its format.
+                val codec = when (format.sampleMimeType) {
+                    "audio/flac" -> "FLAC"
+                    "audio/alac" -> "ALAC"
+                    "audio/mpeg" -> "MP3"
+                    "audio/mp4a-latm" -> "AAC"
+                    "audio/opus" -> "Opus"
+                    "audio/vorbis" -> "Vorbis"
+                    "audio/raw" -> "WAV"
+                    else -> format.sampleMimeType?.removePrefix("audio/")?.uppercase()
+                }
+                val bits = when (format.pcmEncoding) {
+                    C.ENCODING_PCM_16BIT -> 16
+                    C.ENCODING_PCM_24BIT, C.ENCODING_PCM_24BIT_BIG_ENDIAN -> 24
+                    C.ENCODING_PCM_32BIT, C.ENCODING_PCM_32BIT_BIG_ENDIAN, C.ENCODING_PCM_FLOAT -> 32
+                    else -> null
+                }
+                NerdStats.onPlaybackSource(NerdStats.Source(
+                    provider = listOfNotNull("This phone", codec).joinToString(" · "),
+                    bits = bits,
+                    sampleRate = format.sampleRate.takeIf { it > 0 },
+                    kbps = format.bitrate.takeIf { it > 0 }?.div(1000),
+                    mediaId = id,
+                ))
             }
             // The DAC follows the song's rate by itself: it's set as each song's output opens.
         }
@@ -806,9 +830,8 @@ class PlaybackService : MediaLibraryService() {
     private var loudnessSession = C.AUDIO_SESSION_ID_UNSET
 
     /**
-     * Loudness normalization the way YouTube does it: one fixed gain per
-     * track, from YouTube's own measurement of that track ([StreamResolver.loudnessDbFor]),
-     * applied with the platform's LoudnessEnhancer. Loud masters come down to
+     * Loudness normalization: one fixed gain per track, from the file's own
+     * ReplayGain tag (see [ReplayGain]), applied with the platform's LoudnessEnhancer. Loud masters come down to
      * the reference and quiet ones come up a little (at most +3 dB), with no
      * pumping and nothing touching the peaks in between. Without a figure, or
      * with the setting off, the gain is zero and the effect is off.
