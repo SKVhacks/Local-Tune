@@ -3,7 +3,6 @@ package com.opentune.data
 import android.os.Build
 import android.os.Process
 import com.opentune.core.BuildConfig
-import com.opentune.data.account.AccountStore
 import com.opentune.data.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +20,6 @@ object LogExport {
         val header = buildString {
             appendLine("OpenTune ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})${if (BuildConfig.DEBUG) " debug" else ""}")
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}")
-            appendLine("Signed in: ${AccountStore.signedIn.value}")
             appendLine("Settings: ${AppSettings.playback.value}")
         }
         val own = AppLog.snapshot().joinToString("\n").takeLast(OWN_CHARS)

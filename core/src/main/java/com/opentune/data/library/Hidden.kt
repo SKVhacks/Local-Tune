@@ -1,7 +1,6 @@
 package com.opentune.data.library
 
 import com.opentune.data.history.PlayRecord
-import com.opentune.data.innertube.InnertubeParser
 import com.opentune.data.model.HomeShelf
 import com.opentune.data.model.Song
 import java.util.Locale
@@ -86,7 +85,7 @@ data class HiddenList(
         return list.mapNotNull { shelf ->
             val kept = shelf.items.filterNot { item ->
                 item.videoId != null && item.browseId == null &&
-                    hides(item.videoId, InnertubeParser.artistFromSubtitle(item.subtitle))
+                    hides(item.videoId, item.subtitle.substringBefore(" • "))
             }
             when {
                 kept.size == shelf.items.size -> shelf

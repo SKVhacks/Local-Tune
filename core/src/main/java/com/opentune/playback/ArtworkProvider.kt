@@ -3,27 +3,22 @@ package com.opentune.playback
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Size
 import com.opentune.data.DebugLog as Log
-import com.opentune.data.Http
-import com.opentune.data.download.Downloads
-import com.opentune.data.subsonic.Subsonic
+import com.opentune.data.local.LocalMusic
 import java.io.File
 import java.io.FileNotFoundException
-import java.security.MessageDigest
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Request
 
 /**
- * Serves cover art to Android Auto, which only loads `content://` artwork
- * for the items it browses (see [CarArtwork]).
- *
- * `download/<videoId>` is a downloaded song's own cover file. `web?u=<url>`
- * is fetched once into the cache and served from there. Only YouTube's image
- * hosts and your own music server are fetched, so nothing can use this as a
- * general web proxy. The provider isn't exported: the browser that asked
- * for a list is granted read access to the artwork in it.
+ * Serves album covers to Android Auto, which only loads `content://`
+ * artwork it has been granted (see [CarArtwork]). `album/<id>` is the
+ * cover of MediaStore album `id`, read once into the cache. The provider
+ * isn't exported: the browser that asked for a list is granted read access
+ * to the artwork in it.
  */
 class ArtworkProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -33,38 +28,30 @@ class ArtworkProvider : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (mode != "r") throw SecurityException("Artwork is read-only")
         val file = when (uri.pathSegments.firstOrNull()) {
-            "download" -> uri.pathSegments.getOrNull(1)?.let(Downloads::artFor)
-            "web" -> uri.getQueryParameter("u")?.let(::cached)
+            "album" -> uri.pathSegments.getOrNull(1)?.toLongOrNull()?.let(::albumCover)
             else -> null
         } ?: throw FileNotFoundException(uri.toString())
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
-    private fun cached(url: String): File? {
-        val parsed = url.toHttpUrlOrNull() ?: return null
-        // https only, except your own server, which may be on a home network.
-        if (parsed.scheme != "https" && parsed.host != Subsonic.host()) return null
-        val host = parsed.host
-        // YouTube's image hosts, and your own music server's covers.
-        if (ALLOWED_HOSTS.none { host == it || host.endsWith(".$it") } && host != Subsonic.host()) return null
+    private fun albumCover(albumId: Long): File? {
         val context = context ?: return null
         val dir = File(context.cacheDir, "car-art").apply { mkdirs() }
-        val file = File(dir, sha1(url))
+        val file = File(dir, "album-$albumId.jpg")
         if (file.length() > 0) return file
         return runCatching {
-            Http.client.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                val body = response.body
-                if (!response.isSuccessful || body == null) return null
-                val tmp = File(dir, "${file.name}.tmp")
-                tmp.outputStream().use { body.byteStream().copyTo(it) }
-                tmp.renameTo(file)
+            val source = Uri.parse(LocalMusic.albumArt(albumId))
+            val tmp = File(dir, "${file.name}.tmp")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val bitmap = context.contentResolver.loadThumbnail(source, Size(512, 512), null)
+                tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            } else {
+                context.contentResolver.openInputStream(source)?.use { input -> tmp.outputStream().use { input.copyTo(it) } } ?: return null
             }
+            tmp.renameTo(file)
             file.takeIf { it.length() > 0 }
-        }.onFailure { Log.w(TAG, "artwork fetch failed", it) }.getOrNull()
+        }.onFailure { Log.d(TAG, "No cover for album $albumId: ${it.message}") }.getOrNull()
     }
-
-    private fun sha1(text: String): String =
-        MessageDigest.getInstance("SHA-1").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
@@ -73,6 +60,5 @@ class ArtworkProvider : ContentProvider() {
 
     private companion object {
         const val TAG = "ArtworkProvider"
-        val ALLOWED_HOSTS = listOf("googleusercontent.com", "ytimg.com", "ggpht.com")
     }
 }

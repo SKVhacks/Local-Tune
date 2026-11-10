@@ -6,14 +6,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import com.opentune.data.download.Downloads
-import com.opentune.data.innertube.UpgradedTracks
 import com.opentune.data.local.LocalMusic
 import com.opentune.data.model.QueueTier
 import com.opentune.data.model.Song
-import com.opentune.data.subsonic.Subsonic
-import com.opentune.data.radio.Radio
-import androidx.media3.common.MimeTypes
 
 /**
  * Queue entries point at `opentune://track/<videoId>` rather than at a stream
@@ -28,27 +23,13 @@ private const val EXTRA_ALBUM = "album"
 private const val EXTRA_THUMB = "thumb"
 private const val EXTRA_EXPLICIT = "explicit"
 private const val EXTRA_ARTIST_ID = "artistId"
+private const val EXTRA_ALBUM_ID = "albumId"
 private const val EXTRA_SMART_SHUFFLE = "smartShuffle"
 private const val EXTRA_TIER = "tier"
 
-/**
- * Local files play straight from MediaStore and downloads from their file;
- * everything else resolves on open.
- */
-fun trackUri(videoId: String): Uri = when {
-    LocalMusic.isLocal(videoId) -> LocalMusic.contentUri(videoId)
-    // Your own server streams the stored file directly; Uri.EMPTY fails the
-    // item cleanly if the server has been disconnected since it was queued.
-    Subsonic.isSubsonic(videoId) -> Subsonic.streamUrl(videoId)?.let(Uri::parse) ?: Uri.EMPTY
-    // A station streams from its own server.
-    Radio.isRadio(videoId) -> Radio.streamUrl(videoId)?.let(Uri::parse) ?: Uri.EMPTY
-    // A download is played from its file offline; with internet it streams, so it starts
-    // in the best quality found (the file is YouTube's audio as saved), unless that's off.
-    else -> Downloads.fileFor(videoId)
-        ?.takeUnless { com.opentune.data.settings.AppSettings.playback.value.streamDownloadsOnline && com.opentune.data.settings.AppSettings.isOnline() }
-        ?.let(Uri::fromFile)
-        ?: streamUri(videoId, upgraded = UpgradedTracks.contains(videoId))
-}
+/** Every song is a file on the phone, played straight from MediaStore. */
+fun trackUri(videoId: String): Uri =
+    if (LocalMusic.isLocal(videoId)) LocalMusic.contentUri(videoId) else streamUri(videoId, upgraded = false)
 
 /** A YouTube track's queue URI; [upgraded] asks for the better stream found mid-play. */
 fun streamUri(videoId: String, upgraded: Boolean): Uri =
@@ -80,23 +61,21 @@ fun Song.toMediaItem(): MediaItem =
     MediaItem.Builder()
         .setMediaId(videoId)
         .setUri(trackUri(videoId))
-        .apply { if (Radio.isRadio(videoId) && Radio.station(videoId)?.hls == true) setMimeType(MimeTypes.APPLICATION_M3U8) }
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
                 .setArtist(artist)
-                // A downloaded cover keeps the notification and lock screen right offline.
-                .setArtworkUri(Downloads.artFor(videoId)?.let(Uri::fromFile) ?: Subsonic.resolveCover(thumbnailUrl)?.let(Uri::parse))
+                .setArtworkUri(thumbnailUrl?.let(Uri::parse))
                 .setAlbumTitle(albumName)
                 .setExtras(
                     Bundle().apply {
                         putString(EXTRA_DURATION_TEXT, durationText)
                         putString(EXTRA_ALBUM, albumName)
-                        // The cover as the song stores it: a server's carries no credentials.
                         putString(EXTRA_THUMB, thumbnailUrl)
                         isExplicit?.let { putBoolean(EXTRA_EXPLICIT, it) }
-                        // Kept so "Don't play [artist]" from the player knows the artist by id too.
+                        // Kept so the player can open the artist's and album's pages.
                         artistId?.let { putString(EXTRA_ARTIST_ID, it) }
+                        albumId?.let { putString(EXTRA_ALBUM_ID, it) }
                         if (smartShuffle) putBoolean(EXTRA_SMART_SHUFFLE, true)
                         if (queueTier != QueueTier.CONTEXT) putString(EXTRA_TIER, queueTier.name)
                     },
@@ -115,6 +94,7 @@ fun MediaItem.toSong(): Song =
         albumName = mediaMetadata.extras?.getString(EXTRA_ALBUM) ?: mediaMetadata.albumTitle?.toString(),
         isExplicit = mediaMetadata.extras?.takeIf { it.containsKey(EXTRA_EXPLICIT) }?.getBoolean(EXTRA_EXPLICIT),
         artistId = mediaMetadata.extras?.getString(EXTRA_ARTIST_ID),
+        albumId = mediaMetadata.extras?.getString(EXTRA_ALBUM_ID),
         smartShuffle = mediaMetadata.extras?.getBoolean(EXTRA_SMART_SHUFFLE) == true,
         queueTier = mediaMetadata.extras?.getString(EXTRA_TIER)?.let { t -> QueueTier.entries.firstOrNull { it.name == t } } ?: QueueTier.CONTEXT,
     )

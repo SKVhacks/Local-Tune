@@ -7,11 +7,7 @@ import android.net.wifi.WifiManager
 import androidx.media3.common.MediaItem
 import com.opentune.data.DebugLog as Log
 import com.opentune.data.Http
-import com.opentune.data.download.Downloads
-import com.opentune.data.innertube.StreamResolver
 import com.opentune.data.local.LocalMusic
-import com.opentune.data.radio.Radio
-import com.opentune.data.subsonic.Subsonic
 import com.opentune.playback.toSong
 import com.opentune.playback.trackUri
 import java.net.DatagramPacket
@@ -158,51 +154,21 @@ object Cast {
             else -> null
         } ?: return@withContext null
         val dlna = receiver is Dlna
-        val image = song.thumbnailUrl?.takeIf { it.startsWith("http") }
-            ?.let { Subsonic.resolveCover(it) ?: it }
+        // The cover, served from the phone too: the device can't read the phone's own content:// addresses.
+        val image = song.thumbnailUrl?.takeIf { it.startsWith("content://") }?.let { art ->
+            val uri = android.net.Uri.parse(art)
+            val readable = runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.close(); true }.getOrDefault(false)
+            if (readable) CastServer.publish(CastServer.Source.Content(uri, "image/jpeg"), host) else null
+        }
         val duration = item.mediaMetadata.durationMs ?: 0L
         fun media(url: String, type: String, live: Boolean = false) =
             CastMedia(id, url, type, song.title, song.artist, song.albumName, image, duration, live)
 
-        if (Radio.isRadio(id)) {
-            val url = Radio.streamUrl(id) ?: return@withContext null
-            val hls = Radio.station(id)?.hls == true
-            return@withContext media(url, if (hls) "application/x-mpegurl" else "audio/mpeg", live = true)
-        }
-        if (LocalMusic.isLocal(id)) {
-            val uri = trackUri(id)
-            val type = context.contentResolver.getType(uri) ?: "audio/mpeg"
-            return@withContext media(CastServer.publish(CastServer.Source.Content(uri, type), host), type)
-        }
-        if (Subsonic.isSubsonic(id)) {
-            val url = Subsonic.streamUrl(id) ?: return@withContext null
-            val type = runCatching {
-                Http.client.newCall(Request.Builder().url(url).head().build()).execute().use { it.header("Content-Type") }
-            }.getOrNull()?.substringBefore(';')?.takeIf { it.startsWith("audio/") } ?: "audio/mpeg"
-            return@withContext media(CastServer.publish(CastServer.Source.Web(type) { url to emptyMap() }, host), type)
-        }
-        // A download plays from the phone, if the device can take its format.
-        Downloads.fileFor(id)?.let { file ->
-            val type = typeOf(file.extension)
-            if (type != null && !(dlna && type == "audio/webm")) {
-                return@withContext media(CastServer.publish(CastServer.Source.OnPhone(file, type), host), type)
-            }
-        }
-        // A YouTube song: AAC in MP4, which every device plays, through the phone.
-        val type = runCatching { youtube(id, fresh = false).second }.getOrElse {
-            Log.w(TAG, "no stream for $id", it)
-            return@withContext null
-        }
-        media(CastServer.publish(CastServer.Source.Web(type) { fresh -> youtube(id, fresh).first.let { it to StreamResolver.mediaHeadersFor(it) } }, host), type)
-    }
-
-    /** A YouTube song's stream address and type, preferring AAC; held until it stops working. */
-    private suspend fun youtube(id: String, fresh: Boolean): Pair<String, String> {
-        if (!fresh) streams[id]?.let { return it }
-        val found = runCatching { StreamResolver.resolveForDownload(id, maxKbps = 320, requireM4a = true).url to "audio/mp4" }
-            .getOrElse { StreamResolver.resolve(id) to "audio/webm" }
-        streams[id] = found
-        return found
+        if (!LocalMusic.isLocal(id)) return@withContext null
+        val uri = trackUri(id)
+        val type = context.contentResolver.getType(uri) ?: "audio/mpeg"
+        if (dlna) Log.d(TAG, "casting $type to a DLNA renderer")
+        media(CastServer.publish(CastServer.Source.Content(uri, type), host), type)
     }
 
     private fun typeOf(ext: String): String? = when (ext.lowercase()) {

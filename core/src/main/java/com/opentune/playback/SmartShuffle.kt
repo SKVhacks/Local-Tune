@@ -1,12 +1,10 @@
 package com.opentune.playback
 
 import com.opentune.data.DebugLog as Log
-import com.opentune.data.ExploreFeed
 import com.opentune.data.isYouTubeId
 import com.opentune.data.library.HiddenList
 import com.opentune.data.library.LibraryStore
 import com.opentune.data.model.Song
-import com.opentune.data.reco.Recommendations
 import com.opentune.data.settings.AppSettings
 import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
@@ -36,7 +34,7 @@ fun ShuffleMode.next(smartAvailable: Boolean): ShuffleMode = when (this) {
 /**
  * Smart shuffle: a shuffled playlist or album with a few similar songs mixed
  * in, about one after every four of the list's own. The songs come from the
- * same engine autoplay uses (see [Recommendations]) and skip whatever the
+ * same engine autoplay uses (see [com.opentune.data.local.LocalSuggestions]) and skip whatever the
  * user hid.
  *
  * The queue rules are pure functions so they can be tested without a player;
@@ -156,7 +154,7 @@ object SmartShuffle {
     /** A queue from [songs] begins. A local playlist's rows carry its id as [Song.playbackSourceId]. */
     fun startList(songs: List<Song>): Origin {
         val playlistId = songs.firstOrNull()?.playbackSourceId?.takeIf { id -> LibraryStore.playlist(id) != null }
-        val o = Origin(++tokens, songs.mapTo(HashSet()) { it.videoId }, playlistId, songs.any { isYouTubeId(it.videoId) })
+        val o = Origin(++tokens, songs.mapTo(HashSet()) { it.videoId }, playlistId, songs.isNotEmpty())
         _origin.value = o
         _on.value = false
         kept.clear()
@@ -190,26 +188,9 @@ object SmartShuffle {
      * out here; hidden ones are dropped by [Recommendations] and again by
      * [picks].
      */
-    suspend fun recommendationsFor(list: List<Song>, seed: Long): List<Song> = coroutineScope {
+    suspend fun recommendationsFor(list: List<Song>, seed: Long): List<Song> {
         val wanted = list.size / EVERY + 1
-        val seeds = list.filter { isYouTubeId(it.videoId) }.distinctBy { it.videoId }
-            .shuffled(Random(seed xor 0x5EED))
-            .take((wanted + PICKS_PER_SEED - 1) / PICKS_PER_SEED)
-            .take(MAX_SEEDS)
-        val engine = AppSettings.playback.value.recommender
-        seeds.map { s ->
-            async {
-                try {
-                    Recommendations.after(s, engine).songs
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "Couldn't find songs like ${s.title}", e)
-                    emptyList()
-                }
-            }
-        }.awaitAll()
-            .let { ExploreFeed.weave(it) }
-            .filterNot { LibraryStore.isDisliked(it.videoId) }
+        val seeds = list.distinctBy { it.videoId }.shuffled(Random(seed xor 0x5EED)).take(MAX_SEEDS * 4)
+        return com.opentune.data.local.LocalSuggestions.after(seeds, wanted, exclude = list.mapTo(HashSet()) { it.videoId }, random = Random(seed))
     }
 }

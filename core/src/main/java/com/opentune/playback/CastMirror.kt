@@ -132,7 +132,7 @@ class CastMirror(private val context: Context, private val player: Player, priva
                 }
                 val drift = player.currentPosition - s.positionNow()
                 // A station has no place to keep in step with.
-                val live = current?.let(com.opentune.data.radio.Radio::isRadio) == true
+                val live = false
                 if (!settling && !live && kotlin.math.abs(drift) > DRIFT_MS) follow { player.seekTo(s.positionNow()) }
             }
             // Paused on the device itself, by its remote.
