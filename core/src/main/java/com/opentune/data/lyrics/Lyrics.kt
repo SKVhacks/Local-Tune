@@ -89,21 +89,48 @@ object LrcParser {
     fun parse(lrc: String, durationMs: Long = 0L): List<LyricLine> {
         val offset = OFFSET_TAG.find(lrc)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
 
-        // A line can carry several timestamps when a chorus repeats.
+        // A line can carry several timestamps when a chorus repeats. Only the
+        // run of tags at the very start are line times: a `[mm:ss.xx]` further
+        // in (as some karaoke tools write word timing) is read as a word tag.
         val raw = mutableListOf<Pair<Long, String>>()
-        lrc.lineSequence().forEach { line ->
+        // Backing vocals written on their own line, `[bg: <00:12.00>ooh <00:12.40>yeah]`,
+        // go under the line before them.
+        val backing = mutableMapOf<Int, String>()
+        lrc.lineSequence().forEach { rawLine ->
+            val line = rawLine.trimEnd('\r')
+            BG_LINE.matchEntire(line.trim())?.let { m ->
+                val said = WORD_TAG.replace(LINE_TAG.replace(m.groupValues[1], ""), "").replace(Regex("\\s+"), " ").trim()
+                if (said.isNotEmpty() && raw.isNotEmpty()) backing[raw.size - 1] = listOfNotNull(backing[raw.size - 1], said).joinToString(" ")
+                return@forEach
+            }
             val tags = LINE_TAG.findAll(line).toList()
             if (tags.isEmpty() || tags.first().range.first != 0) return@forEach
-            val text = line.substring(tags.last().range.last + 1)
-            tags.forEach { raw += (toMs(it) - offset).coerceAtLeast(0) to text }
+            var lead = 1
+            while (lead < tags.size && tags[lead].range.first == tags[lead - 1].range.last + 1) lead++
+            val bodyStart = tags[lead - 1].range.last + 1
+            val body = line.substring(bodyStart).let { rest ->
+                if (lead == tags.size) rest
+                else LINE_TAG.replace(rest) { "<" + it.value.substring(1, it.value.length - 1) + ">" }
+            }
+            tags.take(lead).forEach { raw += (toMs(it) - offset).coerceAtLeast(0) to body }
         }
-        raw.sortBy { it.first }
+        // Stable: lines sharing a time keep their written order, and a backing line stays with its own.
+        val order = raw.indices.sortedBy { raw[it].first }
 
         val lines = mutableListOf<LyricLine>()
-        raw.forEachIndexed { i, (start, body) ->
-            val nextStart = raw.getOrNull(i + 1)?.first
+        order.forEachIndexed { i, at ->
+            val (start, written) = raw[at]
+            val nextStart = order.getOrNull(i + 1)?.let { raw[it].first }
             val end = nextStart
                 ?: if (durationMs > start) minOf(durationMs, start + LAST_LINE_MS * 2) else start + LAST_LINE_MS
+            // Duet marks as AMLL and Lyricify write them: "v1:" the lead, "v2:" the second voice.
+            val voiceMark = VOICE_MARK.find(written)
+            val voice = when (voiceMark?.groupValues?.get(1)?.lowercase()) {
+                "v2" -> VOICE_SECOND
+                "v1000" -> VOICE_TOGETHER
+                else -> VOICE_LEAD
+            }
+            val body = if (voiceMark != null) written.substring(voiceMark.range.last + 1) else written
             val timedWords = parseWords(body, end, offset)
             val text = WORD_TAG.replace(body, "").replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@forEachIndexed // instrumental gap marker
@@ -113,10 +140,15 @@ object LrcParser {
                 text = text,
                 words = timedWords ?: spreadWords(text, start, end),
                 wordSynced = timedWords != null,
+                voice = voice,
+                background = backing[at],
             )
         }
         return lines
     }
+
+    private val BG_LINE = Regex("""\[bg:\s*(.*)]""", RegexOption.IGNORE_CASE)
+    private val VOICE_MARK = Regex("""^\s*(v1|v2|v1000)\s*:\s*""", RegexOption.IGNORE_CASE)
 
     private fun parseWords(body: String, lineEnd: Long, offset: Long): List<LyricWord>? {
         val tags = WORD_TAG.findAll(body).toList()
