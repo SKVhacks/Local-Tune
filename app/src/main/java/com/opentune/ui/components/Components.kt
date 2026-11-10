@@ -86,8 +86,6 @@ import com.opentune.data.model.BrowseType
 import com.opentune.data.model.CARD_ART_PX
 import com.opentune.data.model.ROW_ART_PX
 import com.opentune.data.model.Song
-import com.opentune.data.download.DownloadState
-import com.opentune.data.download.Downloads
 import com.opentune.data.model.artworkAt
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -244,14 +242,7 @@ fun ArtistLinks(
 @Composable
 fun ListenedBar(videoId: String, modifier: Modifier = Modifier) {
     val long by com.opentune.data.library.ResumePoints.points.collectAsState()
-    val episodes by com.opentune.data.podcasts.Podcasts.progress.collectAsState()
-    val fraction = remember(videoId, long, episodes) {
-        val episode = episodes[videoId]
-        when {
-            episode != null -> if (episode.finished || com.opentune.data.podcasts.Podcasts.resumeAt(videoId) == null) 0f else episode.fraction
-            else -> long[videoId]?.fraction ?: 0f
-        }
-    }
+    val fraction = remember(videoId, long) { long[videoId]?.fraction ?: 0f }
     if (fraction <= 0.01f) return
     Box(
         modifier
@@ -297,8 +288,6 @@ fun SongListItem(
     val view = androidx.compose.ui.platform.LocalView.current
     val haptics = rememberHaptics()
     val hasMenu = onPlayNext != null || onAddToQueue != null || LocalSongMenu.current != null
-    val download by remember(song.videoId) { Downloads.entry(song.videoId) }
-        .collectAsState(Downloads.entryNow(song.videoId))
     if (menuOpen) SongMenuSheet(song, onDismiss = { menuOpen = false })
     val at = anchor.rect
     if (contextOpen && at != null) SongContextMenu(song, at, onDismiss = { contextOpen = false }, onRemoveFromPlaylist = onRemoveFromPlaylist) { SongPreview(song) }
@@ -358,7 +347,6 @@ fun SongListItem(
                 )
             }
             trailing()
-            download?.let { DownloadBadge(it.state, it.progress) }
             if (hasMenu) {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "More options")
@@ -388,23 +376,6 @@ internal fun SongPreview(song: Song) {
 /** What a card's long press opens: a song's menu or an album's or playlist's. */
 sealed interface CardMenu {
     class ForSong(val song: Song) : CardMenu
-    class ForList(val list: MenuList) : CardMenu
-}
-
-/** A small mark on a row: a ring while downloading, a tick once saved. */
-@Composable
-fun DownloadBadge(state: DownloadState, progress: Float) {
-    Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-        when (state) {
-            DownloadState.DONE -> Icon(Icons.Filled.DownloadDone, "Downloaded", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-            DownloadState.FAILED -> Icon(Icons.Filled.ErrorOutline, "Download failed", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-            else -> CircularProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-            )
-        }
-    }
 }
 
 /** A card as it shows lifted out over its long-press menu. */
@@ -446,7 +417,6 @@ fun ItemCard(
         val preview: @Composable () -> Unit = { CardPreview(title, subtitle, thumbnailUrl, round) }
         when (menu) {
             is CardMenu.ForSong -> SongContextMenu(menu.song, at, onDismiss = { contextOpen = false }, preview = preview)
-            is CardMenu.ForList -> CollectionContextMenu(menu.list, at, onDismiss = { contextOpen = false }, preview = preview)
         }
     }
     Column(

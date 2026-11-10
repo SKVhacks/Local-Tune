@@ -1,89 +1,149 @@
 package com.opentune.ui.player
 
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.opentune.data.metadata.TrackMetadata
-import com.opentune.data.metadata.TrackMetadataRepository
-import com.opentune.data.metadata.AppleTrackMetadata
-import com.opentune.data.metadata.AppleTrackMetadataRepository
+import com.opentune.data.local.LocalMusic
+import com.opentune.data.lyrics.LyricsRepository
 import com.opentune.data.model.Song
 import com.opentune.ui.components.FloatingDialog
 import com.opentune.ui.components.SheetButton
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/** What the file says about itself. */
+private data class FileFacts(
+    val path: String?,
+    val sizeBytes: Long?,
+    val format: String?,
+    val sampleRate: Int?,
+    val bitDepth: Int?,
+    val channels: Int?,
+    val bitrate: Int?,
+    val year: String?,
+    val genre: String?,
+    val track: String?,
+    val composer: String?,
+    val albumArtist: String?,
+    val lyrics: String?,
+)
 
 @Composable
 internal fun TrackDetailsDialog(song: Song, durationMs: Long, onDismiss: () -> Unit) {
-    var metadata by remember(song, durationMs) { mutableStateOf<TrackMetadata?>(null) }
-    var message by remember(song, durationMs) { mutableStateOf("Matching recording…") }
-    var retry by remember { mutableIntStateOf(0) }
-    var failed by remember(song, durationMs) { mutableStateOf(false) }
-    var apple by remember(song, durationMs) { mutableStateOf<AppleTrackMetadata?>(null) }
-    var appleMessage by remember(song, durationMs) { mutableStateOf("Matching Apple catalog entry…") }
-    var appleFailed by remember(song, durationMs) { mutableStateOf(false) }
-    var appleRetry by remember { mutableIntStateOf(0) }
-    val uri = LocalUriHandler.current
-    LaunchedEffect(song, durationMs, retry) {
-        metadata = null
-        failed = false
-        message = "Matching recording…"
-        try {
-            metadata = TrackMetadataRepository.lookup(song, durationMs)
-            message = if (metadata == null) "No unambiguous recording match. Original track information is shown above." else "Recording metadata from MusicBrainz"
-        } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { failed = true; message = "Could not reach MusicBrainz. Your track can keep playing." }
-    }
-    // Independent effects keep one provider's failure from hiding the other's result.
-    LaunchedEffect(song, durationMs, appleRetry) {
-        apple = null
-        appleFailed = false
-        appleMessage = "Matching Apple catalog entry…"
-        try {
-            apple = AppleTrackMetadataRepository.lookup(song, durationMs)
-            appleMessage = if (apple == null) "No unambiguous Apple catalog match." else "Catalog metadata from Apple. Playback quality is shown in Signal path."
-        } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { appleFailed = true; appleMessage = "Could not reach the Apple catalog. Your track can keep playing." }
+    val context = LocalContext.current
+    var facts by remember(song.videoId) { mutableStateOf<FileFacts?>(null) }
+    LaunchedEffect(song.videoId) {
+        if (!LocalMusic.isLocal(song.videoId)) return@LaunchedEffect
+        facts = withContext(Dispatchers.IO) { runCatching { readFacts(context, song, durationMs) }.getOrNull() }
     }
     FloatingDialog(onDismissRequest = onDismiss, title = { Text("Track details") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Detail("Title", song.title)
             Detail("Artist", song.artist)
             song.albumName?.let { Detail("Album", it) }
+            facts?.albumArtist?.takeIf { it.isNotBlank() && it != song.artist }?.let { Detail("Album artist", it) }
+            facts?.track?.takeIf { it.isNotBlank() && it != "0" }?.let { Detail("Track", it) }
+            facts?.year?.takeIf { it.isNotBlank() && it != "0" }?.let { Detail("Year", it) }
+            facts?.genre?.takeIf { it.isNotBlank() }?.let { Detail("Genre", it) }
+            facts?.composer?.takeIf { it.isNotBlank() }?.let { Detail("Composer", it) }
             if (durationMs > 0) Detail("Duration", com.opentune.ui.formatTime(durationMs))
-            metadata?.let { data ->
-                Detail("Recording credits", data.credits)
-                data.album?.let { Detail("Matched release", it) }
-                data.releaseDate?.let { Detail("Release date", it) }
-                Detail("ISRC", data.isrcs.joinToString(", ").ifEmpty { "Not listed" })
-                SheetButton("View MusicBrainz recording", onClick = { uri.openUri("https://musicbrainz.org/recording/${data.recordingId}") })
+            facts?.let { f ->
+                val audio = listOfNotNull(
+                    f.format,
+                    f.bitDepth?.let { "$it-bit" },
+                    f.sampleRate?.let { "%.1f kHz".format(it / 1000f).replace(".0 ", " ") },
+                    f.channels?.let { if (it == 1) "mono" else if (it == 2) "stereo" else "$it channels" },
+                    f.bitrate?.let { "${it / 1000} kbps" },
+                ).joinToString(" · ")
+                if (audio.isNotBlank()) Detail("Audio", audio)
+                f.sizeBytes?.let { Detail("Size", "%.1f MB".format(it / 1_048_576.0)) }
+                f.path?.let { Detail("File", it) }
+                Detail("Lyrics", f.lyrics ?: "No lyric file found")
             }
-            Text(message, style = MaterialTheme.typography.bodySmall)
-            if (failed) SheetButton("Retry MusicBrainz", onClick = { retry++ })
-            Text("Apple catalog", style = MaterialTheme.typography.titleMedium)
-            apple?.let { data ->
-                Detail("Artist credit", data.artist)
-                Detail("Catalog album", data.album)
-                data.releaseDate?.let { Detail("Catalog release date", it) }
-                data.genre?.let { Detail("Genre", it) }
-                data.explicitness?.let { Detail("Catalog content label", when (it) {
-                    "explicit" -> "Explicit"
-                    "cleaned" -> "Clean version"
-                    else -> "Not marked explicit"
-                }) }
-                data.trackNumber?.let { Detail("Track", listOfNotNull(data.discNumber?.let { disc -> "Disc $disc" }, "Track $it").joinToString(" · ")) }
-                SheetButton("View on Apple", onClick = { uri.openUri(data.url) })
-            }
-            Text(appleMessage, style = MaterialTheme.typography.bodySmall)
-            if (appleFailed) SheetButton("Retry Apple", onClick = { appleRetry++ })
         }
     }, confirmButton = { SheetButton("Close", onClick = onDismiss, closes = true) })
+}
+
+private suspend fun readFacts(context: android.content.Context, song: Song, durationMs: Long): FileFacts {
+    val uri = LocalMusic.contentUri(song.videoId)
+    @Suppress("DEPRECATION")
+    val (path, size) = context.contentResolver.query(uri, arrayOf(MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.SIZE), null, null, null)?.use { c ->
+        if (c.moveToFirst()) c.getString(0) to c.getLong(1) else null
+    } ?: (null to null)
+    val retriever = MediaMetadataRetriever()
+    val meta = runCatching {
+        retriever.setDataSource(context, uri)
+        fun m(key: Int) = retriever.extractMetadata(key)
+        listOf(
+            m(MediaMetadataRetriever.METADATA_KEY_YEAR),
+            m(MediaMetadataRetriever.METADATA_KEY_GENRE),
+            m(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER),
+            m(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
+            m(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST),
+            m(MediaMetadataRetriever.METADATA_KEY_BITRATE),
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) m(MediaMetadataRetriever.METADATA_KEY_BITS_PER_SAMPLE) else null,
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) m(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE) else null,
+        )
+    }.getOrDefault(List(8) { null }).also { runCatching { retriever.release() } }
+    var format: String? = null
+    var rate: Int? = meta[7]?.toIntOrNull()
+    var channels: Int? = null
+    var bits: Int? = meta[6]?.toIntOrNull()
+    runCatching {
+        val ex = MediaExtractor()
+        ex.setDataSource(context, uri, null)
+        for (i in 0 until ex.trackCount) {
+            val f = ex.getTrackFormat(i)
+            val mime = f.getString(MediaFormat.KEY_MIME) ?: continue
+            if (!mime.startsWith("audio/")) continue
+            format = when (mime) {
+                "audio/flac" -> "FLAC"
+                "audio/alac" -> "ALAC"
+                "audio/mpeg" -> "MP3"
+                "audio/mp4a-latm" -> "AAC"
+                "audio/opus" -> "Opus"
+                "audio/vorbis" -> "Vorbis"
+                "audio/raw" -> "PCM (WAV)"
+                "audio/ac3" -> "AC-3"
+                "audio/eac3" -> "E-AC-3"
+                else -> mime.removePrefix("audio/").uppercase()
+            }
+            if (f.containsKey(MediaFormat.KEY_SAMPLE_RATE)) rate = rate ?: f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            if (f.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            if (bits == null && f.containsKey("bits-per-sample")) bits = f.getInteger("bits-per-sample")
+            break
+        }
+        ex.release()
+    }
+    val lyrics = LyricsRepository.lyricsFor(song.videoId, song.title, song.artist, durationMs)?.let { l ->
+        val kind = when {
+            l is com.opentune.data.lyrics.Lyrics.Synced && l.lines.any { it.wordSynced } -> "Word by word"
+            l is com.opentune.data.lyrics.Lyrics.Synced -> "Line by line"
+            else -> "Plain text"
+        }
+        "$kind · ${l.source.removePrefix("File · ")}"
+    }
+    return FileFacts(
+        path = path, sizeBytes = size, format = format, sampleRate = rate, bitDepth = bits, channels = channels,
+        bitrate = meta[5]?.toIntOrNull()?.takeIf { format !in setOf("FLAC", "ALAC", "PCM (WAV)") },
+        year = meta[0], genre = meta[1], track = meta[2], composer = meta[3], albumArtist = meta[4], lyrics = lyrics,
+    )
 }
 
 @Composable private fun Detail(label: String, value: String) {

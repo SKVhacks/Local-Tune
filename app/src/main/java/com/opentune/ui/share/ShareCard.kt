@@ -27,11 +27,9 @@ import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
 import com.opentune.data.DebugLog as Log
-import com.opentune.data.MusicRepository
 import com.opentune.data.library.LibraryStore
 import com.opentune.data.model.Song
 import com.opentune.data.model.artworkAt
-import com.opentune.data.subsonic.Subsonic
 import com.opentune.ui.formatTime
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -52,26 +50,19 @@ object ShareCard {
     const val SIZE = 1080
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Shares [song]'s link with its card attached; just the link if the card can't be made. */
+    /** Shares a picture of [song], like a now-playing card, with its title and artist. */
     fun share(context: Context, song: Song, positionMs: Long = 0, durationMs: Long = 0) {
-        val link = "https://music.youtube.com/watch?v=${song.videoId}"
         scope.launch {
             val bitmap = runCatching {
                 val cover = loadImage(context, song.thumbnailUrl, SIZE)
-                // The artist's own photo for the name tag, if it comes quickly; the cover otherwise.
-                val photo = withTimeoutOrNull(ARTIST_PHOTO_WAIT_MS) {
-                    runCatching {
-                        MusicRepository.artistIdFor(song)?.let { MusicRepository.artist(it).thumbnailUrl }
-                            ?.let { loadImage(context, it, 160) }
-                    }.getOrNull()
-                }
+                val photo: Bitmap? = null
                 val duration = durationMs.takeIf { it > 0 } ?: durationOf(song.durationText)
                 val liked = LibraryStore.isLiked(song.videoId)
                 withContext(Dispatchers.Default) {
                     draw(cover, song.title, song.artist, positionMs, duration, avatar = photo, subtitle = song.albumName, liked = liked)
                 }
             }.onFailure { Log.w(TAG, "couldn't make the share card", it) }.getOrNull()
-            sendImage(context, bitmap, "OpenTune-${song.videoId}.png", "${song.title} · ${song.artist}\n$link", song.title)
+            sendImage(context, bitmap, "OpenTune-${song.videoId}.png", "${song.title} · ${song.artist}", song.title)
         }
     }
     /**
@@ -146,7 +137,7 @@ object ShareCard {
 
     /** A cover or photo as a software bitmap, [size] pixels across, for drawing on a Canvas. */
     suspend fun loadImage(context: Context, thumbnailUrl: String?, size: Int): Bitmap? {
-        val url = Subsonic.resolveCover(thumbnailUrl.artworkAt(size), size) ?: return null
+        val url = thumbnailUrl ?: return null
         val request = ImageRequest.Builder(context).data(url).size(size).allowHardware(false).build()
         return (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
     }

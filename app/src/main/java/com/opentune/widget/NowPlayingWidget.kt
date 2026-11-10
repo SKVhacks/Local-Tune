@@ -27,7 +27,6 @@ import com.opentune.R
 import com.opentune.data.library.LibraryStore
 import com.opentune.data.model.Song
 import com.opentune.data.model.artworkAt
-import com.opentune.data.subsonic.Subsonic
 import com.opentune.playback.toSong
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -122,7 +121,7 @@ open class NowPlayingWidget : AppWidgetProvider() {
         private fun loadCover(context: Context, state: State) {
             coverJob?.cancel()
             val file = coverFile(context)
-            val url = Subsonic.resolveCover(state.thumbnailUrl.artworkAt(COVER_PX))
+            val url = state.thumbnailUrl
             if (url == null) {
                 file.delete()
                 render(context, state)

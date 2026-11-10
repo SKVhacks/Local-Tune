@@ -146,17 +146,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil3.SingletonImageLoader
 import com.opentune.BuildConfig
 import com.opentune.data.LogExport
-import com.opentune.data.UpdateCheck
-import com.opentune.data.Updater
-import com.opentune.data.account.AccountStore
-import com.opentune.data.download.DownloadState
-import com.opentune.data.download.Downloads
 import com.opentune.data.history.History
-import com.opentune.data.lastfm.LastFm
 import com.opentune.data.library.LibraryStore
-import com.opentune.data.listenbrainz.ListenBrainz
 import com.opentune.data.local.LocalMusic
-import com.opentune.data.releases.NewReleases
 import com.opentune.data.settings.AppSettings
 import com.opentune.data.settings.AudioQuality
 import com.opentune.data.settings.ControlStyle
@@ -175,9 +167,6 @@ import com.opentune.data.settings.Recommender
 import com.opentune.data.settings.SEED_COLORS
 import com.opentune.data.settings.ThemeMode
 import com.opentune.data.settings.VolumeLevel
-import com.opentune.data.sponsorblock.SponsorBlock
-import com.opentune.data.subsonic.Subsonic
-import com.opentune.playback.AudioCache
 import com.opentune.playback.BitPerfectUsb
 import com.opentune.ui.components.AppSwitch
 import com.opentune.ui.components.Artwork
@@ -222,17 +211,10 @@ fun SettingsScreen(
     onOpenEqualizer: () -> Unit,
     onOpenReplay: () -> Unit,
     onOpenWrapped: () -> Unit = {},
-    onSignIn: () -> Unit = {},
-    onOpenDownloads: () -> Unit = {},
-    onOpenSpotify: () -> Unit = {},
-    onOpenDevices: () -> Unit = {},
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var openKey by rememberSaveable { mutableStateOf<String?>(null) }
-    val signedIn by AccountStore.signedIn.collectAsState()
-    val account by AccountStore.account.collectAsState()
-    val updatePending = com.opentune.ui.components.updatePending()
-    val sections = settingsSections(onOpenEqualizer, onOpenReplay, onOpenWrapped, onSignIn, onOpenDownloads, onOpenSpotify, onOpenDevices)
+    val sections = settingsSections(onOpenEqualizer, onOpenReplay, onOpenWrapped)
     val placed = remember(sections) { place(sections) }
     val open = SETTINGS_CATEGORIES.firstOrNull { it.key == openKey }
     androidx.activity.compose.BackHandler(enabled = open != null) { openKey = null }
@@ -335,21 +317,13 @@ fun SettingsScreen(
                             GroupCard {
                                 cats.forEachIndexed { i, c ->
                                     if (i > 0) RowDivider()
-                                    val summary = if (c.key == "account") {
-                                        if (signedIn) account?.name ?: "Signed in to YouTube Music" else "Not signed in"
-                                    } else {
-                                        c.summary
-                                    }
-                                    // The account row wears the signed-in Google photo in place of the icon.
-                                    val avatar = account?.thumbnailUrl?.takeIf { c.key == "account" && signedIn }
+                                    val summary = c.summary
                                     androidx.compose.foundation.layout.Box(if (c.key == cameFrom) Modifier.focusRequester(returnTo) else Modifier) {
                                     NavRow(
                                         c.title,
                                         { cameFrom = c.key; openKey = c.key },
                                         summary = summary,
-                                        icon = if (avatar == null) c.icon else null,
-                                        dot = c.key == "about" && updatePending,
-                                        leading = avatar?.let { url -> { Artwork(url, Modifier.size(28.dp), CircleShape) } },
+                                        icon = c.icon,
                                     )
                                     }
                                 }
@@ -418,39 +392,14 @@ private fun settingsSections(
     onOpenEqualizer: () -> Unit,
     onOpenReplay: () -> Unit,
     onOpenWrapped: () -> Unit,
-    onSignIn: () -> Unit,
-    onOpenDownloads: () -> Unit,
-    onOpenSpotify: () -> Unit,
-    onOpenDevices: () -> Unit,
 ): List<Section> {
-    val signedIn by AccountStore.signedIn.collectAsState()
-    val account by AccountStore.account.collectAsState()
-    val accounts by AccountStore.accounts.collectAsState()
-    val done by Downloads.done.collectAsState(Downloads.doneNow())
-    var downloadQualityDialog by remember { mutableStateOf(false) }
-    var lyricsSourcesDialog by remember { mutableStateOf(false) }
-    var lastFmDialog by remember { mutableStateOf(false) }
-    var serverDialog by remember { mutableStateOf(false) }
-    var listenBrainzDialog by remember { mutableStateOf(false) }
-    var sponsorBlockDialog by remember { mutableStateOf(false) }
-    var update by remember { mutableStateOf<UpdateCheck.Release?>(null) }
     var showWhatsNew by remember { mutableStateOf(false) }
-    var supportDialog by remember { mutableStateOf(false) }
-    val pendingUpdate by UpdateCheck.pending.collectAsState()
-    var updateBytes by remember { mutableStateOf(0L) }
     var playerStyleDialog by remember { mutableStateOf(false) }
     var appIconDialog by remember { mutableStateOf(false) }
     var fontDialog by remember { mutableStateOf(false) }
     var languageDialog by remember { mutableStateOf(false) }
-    var recommenderDialog by remember { mutableStateOf(false) }
-    var historyTargetDialog by remember { mutableStateOf(false) }
-    var followedDialog by remember { mutableStateOf(false) }
     var hiddenDialog by remember { mutableStateOf(false) }
     val hidden by LibraryStore.hidden.collectAsState()
-    val followedArtists by NewReleases.followed.collectAsState()
-    val listenBrainz by ListenBrainz.account.collectAsState()
-    val listensWaiting by ListenBrainz.queued.collectAsState()
-    val musicServer by Subsonic.server.collectAsState()
     var lyricsAnimationDialog by remember { mutableStateOf(false) }
     var dockMotionDialog by remember { mutableStateOf(false) }
     var dockLensDialog by remember { mutableStateOf(false) }
@@ -459,29 +408,17 @@ private fun settingsSections(
     var playerMotionDialog by remember { mutableStateOf(false) }
     var coverChangeDialog by remember { mutableStateOf(false) }
     var controlStyleDialog by remember { mutableStateOf(false) }
-    val lastFm by LastFm.account.collectAsState()
-    val scrobblesWaiting by LastFm.queued.collectAsState()
     val lyricsSettings by AppSettings.lyrics.collectAsState()
-    var confirmSignOut by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    LaunchedEffect(update) { updateBytes = withContext(Dispatchers.IO) { Updater.cachedBytes(context) } }
     val theme by AppSettings.theme.collectAsState()
     val pb by AppSettings.playback.collectAsState()
     val ui by AppSettings.ui.collectAsState()
     val lib by AppSettings.library.collectAsState()
     val metered = remember { AppSettings.onMeteredNetwork() }
-    val spotifyConnected by com.opentune.ui.spotify.SpotifyConnection.connected.collectAsState()
-    val spotifyProblem by com.opentune.ui.spotify.SpotifyConnection.problem.collectAsState()
-    val spotifySync by com.opentune.data.spotify.SpotifySync.status.collectAsState()
-    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { com.opentune.ui.spotify.SpotifyConnection.refresh() } }
-    var qualityDialog by remember { mutableStateOf<Boolean?>(null) } // true = Wi-Fi, false = mobile
-    var audioAddons by remember { mutableStateOf(false) }
-    if (audioAddons) AudioAddonsSheet { audioAddons = false }
     var folderDialog by remember { mutableStateOf(false) }
     var cacheBytes by remember { mutableLongStateOf(0L) }
     var message by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { AudioCache.usedBytes(context) } }
 
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -516,28 +453,10 @@ private fun settingsSections(
         }
     }
 
-    qualityDialog?.let { wifi ->
-        ChoiceSheet(
-            title = if (wifi) "Quality on Wi-Fi" else "Quality on mobile data",
-            options = AudioQuality.entries,
-            selected = if (wifi) pb.wifiQuality else pb.mobileQuality,
-            label = { "${it.label} · ${it.summary}" },
-            onSelect = { q -> AppSettings.updatePlayback { if (wifi) it.copy(wifiQuality = q) else it.copy(mobileQuality = q) } },
-            onDismiss = { qualityDialog = null },
-        )
-    }
-    if (lyricsSourcesDialog) LyricsSourcesDialog(onDismiss = { lyricsSourcesDialog = false })
-    if (lastFmDialog) LastFmDialog(onDismiss = { lastFmDialog = false })
-    if (serverDialog) ServerDialog(onDismiss = { serverDialog = false })
-    if (listenBrainzDialog) ListenBrainzDialog(onDismiss = { listenBrainzDialog = false })
-    if (sponsorBlockDialog) SponsorBlockDialog(onDismiss = { sponsorBlockDialog = false })
-    update?.let { UpdateDialog(it, onDismiss = { update = null }) }
     if (showWhatsNew) com.opentune.ui.components.WhatsNewSheet(
         com.opentune.ui.components.WhatsNew.since(null, BuildConfig.VERSION_NAME, BuildConfig.CHANGELOG),
         BuildConfig.VERSION_NAME, onDismiss = { showWhatsNew = false },
     )
-    if (supportDialog) com.opentune.ui.components.SupportDialog(onDismiss = { supportDialog = false })
-    if (followedDialog) FollowedArtistsDialog(onDismiss = { followedDialog = false })
     if (hiddenDialog) HiddenDialog(onDismiss = { hiddenDialog = false })
     if (appIconDialog) AppIconDialog { appIconDialog = false }
     if (fontDialog) com.opentune.ui.theme.FontSettingsSheet { fontDialog = false }
@@ -559,30 +478,6 @@ private fun settingsSections(
             label = { it.label },
             onSelect = { language -> languageDialog = false; com.opentune.ui.theme.AppLanguages.select(context, language) },
             onDismiss = { languageDialog = false },
-        )
-    }
-    if (historyTargetDialog) {
-        ChoiceSheet(
-            title = "Sync listening history",
-            options = com.opentune.data.history.ListeningHistoryTarget.entries,
-            selected = pb.listeningHistoryTarget,
-            label = { "${it.label} · ${it.summary}" },
-            onSelect = { target -> AppSettings.updatePlayback { it.copy(listeningHistoryTarget = target) } },
-            onDismiss = { historyTargetDialog = false },
-        )
-    }
-    if (recommenderDialog) {
-        ChoiceSheet(
-            title = "Recommendations",
-            options = Recommender.entries,
-            selected = pb.recommender,
-            label = { "${it.label} · ${it.summary}" },
-            onSelect = { r ->
-                com.opentune.data.MusicRepository.refreshHomeRecommendations()
-                com.opentune.ui.ScreenCache.invalidate("home:${r.name}")
-                AppSettings.updatePlayback { it.copy(recommender = r) }
-            },
-            onDismiss = { recommenderDialog = false },
         )
     }
     if (controlStyleDialog) {
@@ -665,32 +560,6 @@ private fun settingsSections(
             onDismiss = { lyricsAnimationDialog = false },
         )
     }
-    if (downloadQualityDialog) {
-        ChoiceSheet(
-            title = "Download quality",
-            options = AudioQuality.entries,
-            selected = lib.downloadQuality,
-            label = { "${it.label} · ${if (it == AudioQuality.MAX) "Lossless from add-ons when available; YouTube fallback" else it.summary}" },
-            onSelect = { q -> AppSettings.updateLibrary { it.copy(downloadQuality = q) } },
-            onDismiss = { downloadQualityDialog = false },
-        )
-    }
-    if (confirmSignOut) {
-        FloatingDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text("Sign out?") },
-            text = { Text("Your likes and playlists on this device stay. YouTube Music stops seeing what you play here.") },
-            confirmButton = {
-                SheetButton("Sign out", tone = SheetTone.Danger, onClick = {
-                    confirmSignOut = false
-                    AccountStore.signOut()
-                    // Every cookie goes, so Spotify's sign-in is put back afterwards.
-                    com.opentune.ui.spotify.SpotifyConnection.keepingSpotify { android.webkit.CookieManager.getInstance().removeAllCookies(it) }
-                })
-            },
-            dismissButton = { SheetButton("Cancel", onClick = { confirmSignOut = false }, closes = true) },
-        )
-    }
     if (folderDialog) {
         var folders by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
         LaunchedEffect(Unit) { folders = runCatching { LocalMusic.folders(context) }.getOrDefault(emptyList()) }
@@ -714,81 +583,9 @@ private fun settingsSections(
 
     return listOf(
         Section(
-            "Account",
-            listOfNotNull(
-                Entry("YouTube Music account", "sign in login google profile switch add") {
-                    if (signedIn) {
-                        Column {
-                            accounts.forEachIndexed { i, acc ->
-                                if (i > 0) RowDivider()
-                                SettingRow(
-                                    acc.name.ifBlank { "Signed in" },
-                                    summary = acc.email.ifBlank { "YouTube Music" },
-                                    onClick = if (acc.active) null else ({ AccountStore.switchTo(acc.id) }),
-                                    leading = { Artwork(acc.thumbnailUrl, Modifier.size(40.dp), CircleShape) },
-                                    trailing = if (acc.active) ({ Icon(Icons.Rounded.Check, "Active account", tint = MaterialTheme.colorScheme.primary) }) else null,
-                                )
-                            }
-                        }
-                    } else {
-                        NavRow("Sign in to YouTube Music", onSignIn, summary = "Your playlists, liked songs and recommendations", icon = Icons.Rounded.AccountCircle)
-                    }
-                },
-                if (signedIn) {
-                    Entry("Add another account", "add switch google account multiple") {
-                        NavRow("Add another account", onSignIn, summary = "Sign in to a second YouTube Music account and switch between them", icon = Icons.Rounded.PersonAdd)
-                    }
-                } else null,
-                Entry("Spotify account", "spotify connect sign in login account playlists library sync disconnect") {
-                    if (spotifyConnected) {
-                        Column {
-                            SettingRow(
-                                "Spotify",
-                                summary = when {
-                                    spotifySync.running && spotifySync.error != null -> "Connected · Connection interrupted. Retrying…"
-                                    spotifySync.running && spotifySync.current != null -> "Connected · bringing over ${spotifySync.current} (${spotifySync.index} of ${spotifySync.count})"
-                                    spotifySync.running -> "Connected · reading your Spotify library…"
-                                    spotifySync.error != null -> "Connected · ${spotifySync.error}. Tap to try again"
-                                    spotifySync.lastSynced > 0 -> "Connected · playlists in Library, checked " +
-                                        android.text.format.DateUtils.getRelativeTimeSpanString(spotifySync.lastSynced) + ". Tap to check now"
-                                    else -> "Connected · tap to bring your playlists into Library"
-                                },
-                                leading = { SpotifyMark() },
-                                enabled = !spotifySync.running,
-                                onClick = { com.opentune.ui.spotify.SpotifyConnection.syncPlaylists(force = true) },
-                            )
-                            RowDivider()
-                            SettingRow("Disconnect Spotify", summary = "Signs out of Spotify inside OpenTune. Playlists already brought over stay in Library", icon = Icons.Rounded.Close, onClick = { com.opentune.ui.spotify.SpotifyConnection.disconnect() })
-                        }
-                    } else {
-                        NavRow(
-                            "Connect Spotify",
-                            { context.startActivity(android.content.Intent(context, com.opentune.ui.spotify.SpotifyConnectActivity::class.java)) },
-                            summary = spotifyProblem?.let { "$it. Sign in again" } ?: "Your playlists in Library, each song's Canvas, and suggestions made for you",
-                            leading = { SpotifyMark() },
-                        )
-                    }
-                },
-                Entry("Link a device", "tv television web browser computer cast speaker chromecast watch wear together qr pairing sign in with your phone platforms") {
-                    NavRow("Link a device", onOpenDevices, summary = "Sign in your TV, the web player, speakers and more", icon = Icons.Rounded.Devices)
-                },
-                if (signedIn) {
-                    Entry("Sign out", "logout account") {
-                        SettingRow(if (accounts.size > 1) "Sign out of this account" else "Sign out", icon = Icons.AutoMirrored.Rounded.Logout, onClick = { confirmSignOut = true })
-                    }
-                } else null,
-            ),
-        ),
-        Section(
             "Audio quality",
             listOfNotNull(
                 // The two look alike; the one for the network in use now says so.
-                Entry("On Wi-Fi", "stream quality bitrate") {
-                    NavRow("On Wi-Fi", { qualityDialog = true }, summary = if (!metered) "In use now" else null, icon = Icons.Rounded.Wifi, value = pb.wifiQuality.label)
-                },
-                Entry("On mobile data", "stream quality bitrate cellular") {
-                    NavRow("On mobile data", { qualityDialog = false }, summary = if (metered) "In use now" else null, icon = Icons.Rounded.NetworkCell, value = pb.mobileQuality.label)
-                },
                 Entry("Output precision", "16-bit 32-bit float sample rate") {
                     SettingRow("Output precision", summary = outputSummary(context, pb.floatOutput), icon = Icons.Rounded.GraphicEq, beta = true, below = {
                         PillSegmented(listOf(false, true), pb.floatOutput, { if (it) "32-bit float" else "16-bit PCM" }, { v -> AppSettings.updatePlayback { it.copy(floatOutput = v) } })
@@ -799,15 +596,6 @@ private fun settingsSections(
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     })
-                },
-                Entry("Lossless streaming", "flac lossless addons") {
-                    ToggleRow("Lossless at other quality levels", pb.losslessStreaming, { v -> AppSettings.updatePlayback { it.copy(losslessStreaming = v) } }, summary = "Also check your audio add-ons after playback starts at other quality levels. Lossless checks them automatically in your chosen order.", icon = Icons.Rounded.HighQuality)
-                },
-                Entry("Unmetered networks only", "flac saavn mobile wifi data") {
-                    ToggleRow("Unmetered networks only", pb.losslessUnmeteredOnly, { v -> AppSettings.updatePlayback { it.copy(losslessUnmeteredOnly = v) } }, summary = "When on, mobile data uses YouTube even with Lossless selected. Turn off to try FLAC and JioSaavn on mobile data", icon = Icons.Rounded.Wifi)
-                },
-                Entry("Audio add-ons", "source URL manifest order priority lossless flac high res") {
-                    SettingRow("Audio add-ons", icon = Icons.Rounded.HighQuality, summary = "Add service URLs and choose source priority", onClick = { audioAddons = true })
                 },
                 Entry("Bit-perfect USB output", "dac exclusive mode usb audio player pro hiby passthrough hi-fi audiophile mixer bypass sample rate switching") {
                     val usb by BitPerfectUsb.status.collectAsState()
@@ -868,9 +656,6 @@ private fun settingsSections(
                 Entry("Preload upcoming songs", "latency fast skip instant buffer") {
                     ToggleRow("Preload upcoming songs", pb.preloadUpcoming, { v -> AppSettings.updatePlayback { it.copy(preloadUpcoming = v) } }, summary = "Next and previous songs start almost instantly. Uses a little extra data.", icon = Icons.Rounded.Speed)
                 },
-                Entry("Upgrade quality while playing", "better stream premium 256 opus swap") {
-                    ToggleRow("Upgrade quality while playing", pb.qualityUpgrade, { v -> AppSettings.updatePlayback { it.copy(qualityUpgrade = v) } }, summary = "If a clearly better stream turns up a few seconds in, switch to it without stopping", icon = Icons.Rounded.HighQuality, beta = true)
-                },
                 Entry("Crossfade", "fade blend transition overlap") {
                     SettingRow(
                         "Crossfade",
@@ -901,26 +686,6 @@ private fun settingsSections(
                 Entry("Autoplay", "radio continue") {
                     ToggleRow("Autoplay", pb.autoplay, AppSettings::setAutoplay, summary = "Keep playing similar songs when the queue ends", icon = Icons.AutoMirrored.Rounded.PlaylistPlay)
                 },
-                Entry("Recommendations", "recommendation engine spotify jiosaavn saavn youtube music radio suggestions similar songs") {
-                    NavRow(
-                        "Recommendations",
-                        { recommenderDialog = true },
-                        summary = "Whose picks autoplay adds and Home's \"Because you played\" shows. Songs still play from YouTube Music.",
-                        icon = Icons.Rounded.AutoAwesome,
-                        value = pb.recommender.label,
-                    )
-                },
-                Entry("Sync listening history", "youtube account privacy sync spotify history") {
-                    NavRow("Sync listening history", { historyTargetDialog = true },
-                        summary = "YouTube Music needs a signed-in account. Spotify does not accept plays from other services; likes can sync separately. Connected scrobblers keep their own settings.",
-                        icon = Icons.Rounded.History, value = pb.listeningHistoryTarget.label)
-                },
-                Entry("Pause account sync", "private pause youtube spotify history recommendations") {
-                    ToggleRow("Pause account sync", pb.pauseListeningHistory,
-                        { v -> AppSettings.updatePlayback { it.copy(pauseListeningHistory = v) } },
-                        summary = "Pause sending new listens to YouTube Music. Your local history, listening stats and personal recommendations keep updating. Paused listens are never sent later; likes and connected scrobblers keep their own settings.",
-                        icon = Icons.Rounded.History)
-                },
                 Entry("Don't repeat songs in current session", "autoplay duplicates") {
                     ToggleRow("Don't repeat songs in current session", pb.noRepeatInSession, { v -> AppSettings.updatePlayback { it.copy(noRepeatInSession = v) } }, summary = "Autoplay won't add a song already played or queued this session", icon = Icons.Rounded.History)
                 },
@@ -946,12 +711,6 @@ private fun settingsSections(
                 Entry("Pause at zero volume", "mute volume down silent") {
                     ToggleRow("Pause at zero volume", pb.pauseAtZeroVolume, { v -> AppSettings.updatePlayback { it.copy(pauseAtZeroVolume = v) } }, summary = "Pauses when the volume is turned all the way down and plays again when it comes back up", icon = Icons.AutoMirrored.Rounded.VolumeOff)
                 },
-                Entry("SponsorBlock", "sponsorblock skip sponsor intro outro non-music talking music video segments") {
-                    ToggleRow("Skip non-music parts", pb.sponsorBlock, { v -> AppSettings.updatePlayback { it.copy(sponsorBlock = v) } }, summary = "Jumps over talking, skits and sponsor reads in music videos, from SponsorBlock", icon = Icons.Rounded.FastForward)
-                },
-                if (pb.sponsorBlock) Entry("SponsorBlock categories", "sponsorblock skip categories") {
-                    NavRow("What to skip", { sponsorBlockDialog = true }, summary = pb.sponsorBlockCategories.mapNotNull { SponsorBlock.CATEGORIES[it]?.label }.joinToString().ifEmpty { "Nothing" }, icon = Icons.Rounded.FastForward)
-                } else null,
                 Entry("Stop music on close from recents", "swipe away") {
                     ToggleRow("Stop music on close from recents", pb.stopOnTaskRemoved, { v -> AppSettings.updatePlayback { it.copy(stopOnTaskRemoved = v) } }, summary = "Stops playback when swiped away from recent apps", icon = Icons.Rounded.MusicOff)
                 },
@@ -970,9 +729,6 @@ private fun settingsSections(
                 },
                 Entry("Mini player takes the cover's colour", "mini player pill tint colour artwork plain") {
                     ToggleRow("Mini player takes the cover's colour", ui.miniPlayerTint, { v -> AppSettings.updateUi { it.copy(miniPlayerTint = v) } }, summary = "Off keeps the small player's glass plain, whatever is playing", icon = Icons.Rounded.AutoAwesome)
-                },
-                Entry("Artist pages take the photo's colour", "artist page tint colour photo background") {
-                    ToggleRow("Artist pages take the photo's colour", ui.artistPageTint, { v -> AppSettings.updateUi { it.copy(artistPageTint = v) } }, summary = "Off keeps artist pages in the app's own colours", icon = Icons.Rounded.AutoAwesome)
                 },
                 Entry("Material You", "wallpaper dynamic color") {
                     val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -1080,9 +836,6 @@ private fun settingsSections(
                 Entry("Moving cover art", "motion artwork canvas animated cover drift zoom") {
                     ToggleRow("Moving cover art", ui.movingCover, { v -> AppSettings.updateUi { it.copy(movingCover = v) } }, summary = "The cover drifts and zooms slowly in the player while a song plays", icon = Icons.Rounded.Animation)
                 },
-                Entry("Moving covers on Home", "motion artwork animated cover drift zoom home cards mixes") {
-                    ToggleRow("Moving covers on Home", ui.homeMovingCovers, { v -> AppSettings.updateUi { it.copy(homeMovingCovers = v) } }, summary = "Song and album covers on Home drift and zoom slowly, one or two at a time, while you're not scrolling. Off in battery saver", icon = Icons.Rounded.Animation)
-                },
                 Entry("Full-screen cover art", "artwork edge") {
                     ToggleRow("Full-screen cover art", ui.fullScreenCover, { v -> AppSettings.updateUi { it.copy(fullScreenCover = v) } }, summary = "Runs the cover to the edges of the player instead of a square sleeve", icon = Icons.Rounded.Fullscreen)
                 },
@@ -1123,44 +876,6 @@ private fun settingsSections(
                 Entry("Skip to chorus", "chorus jump skip button song parts") {
                     ToggleRow("Skip to chorus button", ui.skipToChorus, { v -> AppSettings.updateUi { it.copy(skipToChorus = v) } }, summary = "A button under the title that jumps to the next chorus, when the lyrics mark one", icon = Icons.Rounded.FastForward)
                 },
-                Entry("Audio quality label", "audio source quality pill badge codec bitrate jiosaavn youtube") {
-                    ToggleRow("Show the quality label", ui.sourcePill, { v -> AppSettings.updateUi { it.copy(sourcePill = v) } }, summary = "Shows quality and upgrade progress below the seek bar; tap for the full signal path", icon = Icons.Rounded.HighQuality)
-                },
-                Entry("Album covers", "artwork cover musicbrainz cover art archive video thumbnail") {
-                    ToggleRow("Sharper album covers", ui.albumCovers, { v -> AppSettings.updateUi { it.copy(albumCovers = v) } }, summary = "The player shows the album's cover from Apple Music, Deezer or the Cover Art Archive, sharper than YouTube's and in place of a video frame", icon = Icons.Rounded.Album)
-                },
-                Entry("Artist signatures", "artist signature handwritten autograph name artist page header") {
-                    com.opentune.ui.browse.ArtistSignatureSettings()
-                },
-                Entry("Animated covers", "apple music motion artwork video moving album cover animated") {
-                    ToggleRow("Animated covers", ui.animatedCovers, { v -> AppSettings.updateUi { it.copy(animatedCovers = v) } }, summary = "When Apple Music has a moving cover for the album, it loops silently in the player's cover", icon = Icons.Rounded.Animation)
-                    if (ui.animatedCovers) {
-                        RowDivider()
-                        SettingRow("Animated cover quality", summary = when (ui.motionQuality) {
-                            com.opentune.data.settings.MotionQuality.LOW -> "Up to 768 px, about 1.5 Mbps. Lightest on data"
-                            com.opentune.data.settings.MotionQuality.MEDIUM -> "Up to 1080 px, about 4 Mbps"
-                            com.opentune.data.settings.MotionQuality.HIGH -> "Up to 2160 px square, about 15 Mbps. Sharpest, uses the most data"
-                        }, icon = Icons.Rounded.HighQuality, below = {
-                            PillSegmented(com.opentune.data.settings.MotionQuality.entries, ui.motionQuality, { it.label }, { v -> AppSettings.updateUi { it.copy(motionQuality = v) } })
-                        })
-                    }
-                },
-                Entry("Spotify", "spotify canvas video loop background likes mixes home") {
-                    // Connecting is in Account; these only do something while Spotify is connected.
-                    val off = if (spotifyConnected) null else "Connect Spotify in Account first"
-                    ToggleRow("Spotify Canvas", ui.spotifyCanvas, { v -> AppSettings.updateUi { it.copy(spotifyCanvas = v) } }, summary = off ?: "When a song has a Canvas on Spotify, it loops silently behind the player", icon = Icons.Rounded.Animation, enabled = spotifyConnected)
-                    RowDivider()
-                    SettingRow("Behind the title and controls", summary = off ?: ui.canvasLook.summary, icon = Icons.Rounded.BlurOn, below = {
-                        PillSegmented(com.opentune.data.settings.CanvasLook.entries, ui.canvasLook, { it.label }, { v -> AppSettings.updateUi { it.copy(canvasLook = v) } })
-                    })
-                    RowDivider()
-                    ToggleRow("Save likes to Spotify", ui.spotifySaveLikes, { v -> AppSettings.updateUi { it.copy(spotifySaveLikes = v) } }, summary = off ?: "Likes are saved to Spotify. Listening here does not add plays to Spotify history", icon = Icons.Rounded.Favorite, enabled = spotifyConnected)
-                    RowDivider()
-                    ToggleRow("Spotify mixes on Home", ui.spotifyMixes, { v -> AppSettings.updateUi { it.copy(spotifyMixes = v) } }, summary = off ?: "Your Daily Mixes, Discover Weekly and Release Radar from Spotify, found on YouTube Music", icon = Icons.Rounded.Album, enabled = spotifyConnected)
-                },
-                Entry("Animated covers on Wi-Fi only", "mobile data metered save data wifi animated covers canvas video") {
-                    ToggleRow("Animated covers on Wi-Fi only", ui.animatedCoversWifiOnly, { v -> AppSettings.updateUi { it.copy(animatedCoversWifiOnly = v) } }, summary = "Animated covers and Canvas don't load on mobile data", icon = Icons.Rounded.Wifi, enabled = ui.animatedCovers || (spotifyConnected && ui.spotifyCanvas))
-                },
                 Entry("Reduce animation", "motion") {
                     ToggleRow("Reduce animation", ui.reduceAnimation, { v -> AppSettings.updateUi { it.copy(reduceAnimation = v) } }, summary = "Freezes decorative motion and simplifies player and lyric transitions", icon = Icons.Rounded.Animation)
                 },
@@ -1183,18 +898,6 @@ private fun settingsSections(
                 },
                 Entry("High performance mode", "120hz 90hz smooth fps refresh rate frame rate scrolling performance battery unrestricted lag") {
                     HighPerformanceRows(ui)
-                },
-                Entry("Speed dial", "home most played quick grid shortcuts favourites top") {
-                    ToggleRow("Speed dial", ui.speedDial, { v -> AppSettings.updateUi { it.copy(speedDial = v) } }, summary = "Your most-played songs, albums and artists at the top of Home", icon = Icons.Rounded.GridView)
-                },
-                Entry("Separate Explore tab", "explore tab dock search page navigation moods genres own") {
-                    ToggleRow(
-                        "Separate Explore tab",
-                        ui.separateExplore,
-                        { v -> AppSettings.updateUi { it.copy(separateExplore = v) } },
-                        summary = if (ui.separateExplore) "Explore has a tab in the dock" else "Explore fills the Search page until you start a search",
-                        icon = Icons.Rounded.Explore,
-                    )
                 },
                 Entry("Wide-screen layout", "tablet foldable large screen landscape rail side navigation dock columns") {
                     ToggleRow(
@@ -1264,97 +967,38 @@ private fun settingsSections(
                 Entry("Blur unfocused lyrics", "spotlight") {
                     ToggleRow("Blur unfocused lyrics", ui.blurLyrics, { v -> AppSettings.updateUi { it.copy(blurLyrics = v) } }, summary = "Keeps the spotlight on the current line", icon = Icons.Rounded.BlurOn)
                 },
-                Entry("Lyrics take the screen", "hide controls idle focus fullscreen lyrics auto") {
-                    ToggleRow("Lyrics take the screen", ui.lyricsFocus, { v -> AppSettings.updateUi { it.copy(lyricsFocus = v) } }, summary = "On the lyrics view, the controls slide away after a few seconds untouched. Touch or swipe to bring them back.", icon = Icons.Rounded.Lyrics)
-                },
-                Entry("Lyrics sources", "lrclib youtube order provider") {
-                    NavRow(
-                        "Lyrics sources",
-                        { lyricsSourcesDialog = true },
-                        summary = lyricsSettings.ordered.filter { it.enabled }.joinToString(", then ") { it.source.label }.ifEmpty { "None: lyrics are off" },
-                        icon = Icons.Rounded.TextFields,
-                    )
-                },
-            ),
-        ),
-        Section(
-            "New releases",
-            listOf(
-                Entry("New-release alerts", "new release album single notify follow artists notification") {
-                    ToggleRow(
-                        "New-release alerts",
-                        lib.releaseAlerts,
-                        { v ->
-                            AppSettings.updateLibrary { it.copy(releaseAlerts = v) }
-                            NewReleases.schedule(context)
-                        },
-                        summary = "A notification when an artist you follow puts out an album or single. Checked twice a day.",
-                        icon = Icons.Rounded.NotificationsActive,
-                    )
-                },
-                Entry("Followed artists", "follow artists unfollow") {
-                    NavRow("Followed artists", { followedDialog = true }, summary = if (followedArtists.isEmpty()) "Follow from an artist's page" else "${followedArtists.size} artists", icon = Icons.Rounded.Person)
-                },
-            ),
-        ),
-        Section(
-            "Content",
-            listOf(
-                Entry("Hide explicit content", "explicit clean kids family parental filter") {
-                    ToggleRow(
-                        "Hide explicit content",
-                        lib.hideExplicit,
-                        { v -> AppSettings.updateLibrary { it.copy(hideExplicit = v) } },
-                        summary = "Leaves out songs and albums marked explicit on Home, in search, on album and artist pages and in autoplay",
-                        icon = Icons.Rounded.FilterAlt,
-                    )
-                },
-            ),
-        ),
-        Section(
-            "Downloads",
-            listOf(
-                Entry("Downloaded songs", "offline saved") {
-                    NavRow(
-                        "Downloaded songs",
-                        onOpenDownloads,
-                        summary = "${done.size} songs · ${Formatter.formatShortFileSize(context, done.sumOf { it.bytes })}",
-                        icon = Icons.Rounded.DownloadDone,
-                    )
-                },
-                Entry("Download quality", "offline bitrate") {
-                    NavRow("Download quality", { downloadQualityDialog = true }, icon = Icons.Rounded.Download, value = lib.downloadQuality.label)
-                },
-                Entry("Download on Wi-Fi only", "mobile data metered") {
-                    ToggleRow("Download on Wi-Fi only", lib.downloadWifiOnly, { v -> AppSettings.updateLibrary { it.copy(downloadWifiOnly = v) }; com.opentune.data.download.Downloads.requeueWaiting(context) }, summary = "Waits for Wi-Fi before saving songs", icon = Icons.Rounded.Wifi)
-                },
-                Entry("Stream downloads when online", "offline file internet play quality") {
-                    val pbd by AppSettings.playback.collectAsState()
-                    ToggleRow("Stream downloads when online", pbd.streamDownloadsOnline, { v -> AppSettings.updatePlayback { it.copy(streamDownloadsOnline = v) } }, summary = "Downloaded songs stream in their best quality with internet and play from the file offline", icon = Icons.Rounded.Wifi)
-                },
-                Entry("Export compatible downloads", "music folder other apps files save export mp4 aac copy") {
-                    ToggleRow(
-                        "Export compatible downloads",
-                        lib.exportDownloads && com.opentune.data.download.DownloadExport.supported,
-                        { v ->
-                            AppSettings.updateLibrary { it.copy(exportDownloads = v) }
-                            // Turned on: the songs already downloaded go into the Music folder too.
-                            if (v) scope.launch {
-                                val (copied, skipped) = com.opentune.data.download.Downloads.exportExisting(context.applicationContext)
-                                val note = buildString {
-                                    append(if (copied == 1) "1 song" else "$copied songs")
-                                    append(" copied to Music/OpenTune")
-                                    if (skipped > 0) append("; $skipped in a format other apps can't play, download them again to export")
+                Entry("Lyrics folders", "lrc ttml elrc txt lyrics files folder sidecar apple music word synced karaoke") {
+                    val lyricFolders by com.opentune.data.lyrics.LocalLyrics.folders.collectAsState()
+                    val found by com.opentune.data.lyrics.LocalLyrics.indexed.collectAsState()
+                    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+                        tree?.let(com.opentune.data.lyrics.LocalLyrics::addFolder)
+                    }
+                    SettingRow(
+                        "Lyrics folders",
+                        summary = if (lyricFolders.isEmpty()) "Choose the folder with your music and its .lrc and .ttml files. Android only lets the app read them from folders you pick."
+                        else "${lyricFolders.size} ${if (lyricFolders.size == 1) "folder" else "folders"}" + (if (found > 0) " · $found lyric files" else ""),
+                        icon = Icons.Rounded.Folder,
+                        below = {
+                            Column {
+                                lyricFolders.forEach { tree ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(com.opentune.data.lyrics.LocalLyrics.label(tree), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                        androidx.compose.material3.TextButton(onClick = { com.opentune.data.lyrics.LocalLyrics.removeFolder(tree) }) { Text("Remove") }
+                                    }
                                 }
-                                if (copied > 0 || skipped > 0) com.opentune.data.Pills.done(note, context)
+                                Row {
+                                    androidx.compose.material3.TextButton(onClick = { pick.launch(null) }) { Text("Add folder") }
+                                    if (lyricFolders.isNotEmpty()) androidx.compose.material3.TextButton(onClick = {
+                                        com.opentune.data.lyrics.LocalLyrics.refresh()
+                                        message = "Lyric files will be looked for again as songs play."
+                                    }) { Text("Look again") }
+                                }
                             }
                         },
-                        summary = if (com.opentune.data.download.DownloadExport.supported)
-                            "Also saves each download to Music/OpenTune as AAC (M4A) or FLAC, so other music apps can play it"
-                        else "Needs Android 10 or newer",
-                        icon = Icons.Rounded.DownloadDone,
-                        enabled = com.opentune.data.download.DownloadExport.supported,
                     )
+                },
+                Entry("Lyrics take the screen", "hide controls idle focus fullscreen lyrics auto") {
+                    ToggleRow("Lyrics take the screen", ui.lyricsFocus, { v -> AppSettings.updateUi { it.copy(lyricsFocus = v) } }, summary = "On the lyrics view, the controls slide away after a few seconds untouched. Touch or swipe to bring them back.", icon = Icons.Rounded.Lyrics)
                 },
             ),
         ),
@@ -1365,47 +1009,13 @@ private fun settingsSections(
                     NavRow("Local music folder", { folderDialog = true }, summary = lib.localFolder ?: "All audio folders", icon = Icons.Rounded.Folder)
                 },
                 Entry("Filter non-music audio", "recordings voice notes") {
-                    ToggleRow("Filter non-music audio", lib.filterNonMusic, { v -> AppSettings.updateLibrary { it.copy(filterNonMusic = v) } }, summary = "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds", icon = Icons.Rounded.FilterAlt)
+                    ToggleRow("Filter non-music audio", lib.filterNonMusic, { v -> AppSettings.updateLibrary { it.copy(filterNonMusic = v) } }, summary = "Hides clips under 30 seconds, voice notes, recordings and system sounds", icon = Icons.Rounded.FilterAlt)
                 },
             ),
         ),
         Section(
             "Storage",
             listOf(
-                Entry("Song cache limit", "disk offline seeking") {
-                    var draft by remember(lib.songCacheMb) { mutableFloatStateOf(lib.songCacheMb.toFloat()) }
-                    SettingRow(
-                        "Song cache limit",
-                        summary = "Keeps played audio on disk for instant seeking and replays. Takes effect after a restart.",
-                        icon = Icons.Rounded.Storage,
-                        trailing = { Text(formatMb(draft.toInt()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal) },
-                        below = {
-                            Slider(
-                                value = draft,
-                                onValueChange = { draft = (it / 128).toInt().coerceAtLeast(1) * 128f },
-                                onValueChangeFinished = { AppSettings.updateLibrary { it.copy(songCacheMb = draft.toInt()) } },
-                                valueRange = 128f..4096f,
-                            )
-                        },
-                    )
-                },
-                Entry("Clear song cache", "free space") {
-                    NavRow("Clear song cache", {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { AudioCache.clear(context) }
-                            cacheBytes = withContext(Dispatchers.IO) { AudioCache.usedBytes(context) }
-                        }
-                    }, summary = "Using ${Formatter.formatShortFileSize(context, cacheBytes)}", icon = Icons.Rounded.DeleteSweep)
-                },
-                Entry("Delete downloaded updates", "apk update installer free space") {
-                    NavRow("Delete downloaded updates", {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { Updater.deleteCached(context) }
-                            updateBytes = 0
-                            message = "Downloaded updates deleted."
-                        }
-                    }, summary = if (updateBytes > 0) "Using ${Formatter.formatShortFileSize(context, updateBytes)}" else "None kept", icon = Icons.Rounded.DeleteSweep)
-                },
                 Entry("Clear image cache", "artwork") {
                     NavRow("Clear image cache", {
                         val loader = SingletonImageLoader.get(context)
@@ -1437,75 +1047,6 @@ private fun settingsSections(
             ),
         ),
         Section(
-            "Your music server",
-            listOfNotNull(
-                Entry("Music server", "subsonic navidrome gonic airsonic jellyfin flac lossless server") {
-                    val connected = musicServer
-                    if (connected == null) {
-                        NavRow("Connect a server", { serverDialog = true }, summary = "Stream your own FLAC and hi-res files from any Subsonic server", icon = Icons.Rounded.Dns)
-                    } else {
-                        NavRow(
-                            "${connected.user} on ${connected.url.substringAfter("://")}",
-                            { serverDialog = true },
-                            summary = "Streams stored files as they are. Tap to sign in again.",
-                            icon = Icons.Rounded.Dns,
-                        )
-                    }
-                },
-                if (musicServer != null) Entry("Disconnect server", "sign out subsonic") {
-                    SettingRow("Disconnect server", icon = Icons.AutoMirrored.Rounded.Logout, onClick = { Subsonic.disconnect() })
-                } else null,
-            ),
-        ),
-        Section(
-            "Last.fm (optional)",
-            listOfNotNull(
-                Entry("Last.fm scrobbling", "scrobble lastfm audioscrobbler history") {
-                    val who = lastFm
-                    if (who == null) {
-                        NavRow("Connect Last.fm", { lastFmDialog = true }, summary = "Scrobble what you play with your own Last.fm API account", icon = Icons.Rounded.History)
-                    } else {
-                        SettingRow(
-                            "Scrobbling as ${who.user}",
-                            summary = if (scrobblesWaiting > 0) "$scrobblesWaiting scrobbles waiting to send" else "Songs are scrobbled after half their length or 4 minutes",
-                            icon = Icons.Rounded.History,
-                        )
-                    }
-                },
-                if (lastFm != null) Entry("Disconnect Last.fm", "sign out lastfm") {
-                    SettingRow("Disconnect Last.fm", icon = Icons.AutoMirrored.Rounded.Logout, onClick = { LastFm.signOut() })
-                } else null,
-            ),
-        ),
-        Section(
-            "ListenBrainz (optional)",
-            listOfNotNull(
-                Entry("ListenBrainz", "listenbrainz scrobble history recommendations metabrainz") {
-                    val who = listenBrainz
-                    if (who == null) {
-                        NavRow("Connect ListenBrainz", { listenBrainzDialog = true }, summary = "Free, open listening history, and recommendations on Home", icon = Icons.Rounded.History)
-                    } else {
-                        SettingRow(
-                            "Sending listens as ${who.user}",
-                            summary = if (listensWaiting > 0) "$listensWaiting listens waiting to send" else "Recommendations from your listens show on Home",
-                            icon = Icons.Rounded.History,
-                        )
-                    }
-                },
-                if (listenBrainz != null) Entry("Disconnect ListenBrainz", "sign out listenbrainz") {
-                    SettingRow("Disconnect ListenBrainz", icon = Icons.AutoMirrored.Rounded.Logout, onClick = { ListenBrainz.signOut() })
-                } else null,
-            ),
-        ),
-        Section(
-            "Import",
-            listOf(
-                Entry("Import a playlist", "spotify youtube music import playlist album link csv exportify transfer migrate") {
-                    NavRow("Import a playlist", onOpenSpotify, summary = "From a Spotify or YouTube Music link, or a CSV export", icon = Icons.AutoMirrored.Rounded.QueueMusic)
-                },
-            ),
-        ),
-        Section(
             "Miscellaneous",
             listOf(
                 Entry("Playlists in Library", "playlists library tiles list grid view rows layout show all view all") {
@@ -1533,44 +1074,6 @@ private fun settingsSections(
             listOf(
                 Entry("What's new", "release notes changelog version highlights") {
                     NavRow("What's new", { showWhatsNew = true }, summary = "Highlights and improvements in ${BuildConfig.VERSION_NAME}", icon = Icons.Rounded.SystemUpdate)
-                },
-                Entry("Show the welcome again", "welcome onboarding first run start intro pick artists setup") {
-                    NavRow("Show the welcome again", { com.opentune.data.Welcome.showAgain() }, summary = "Pick artists, choose a look and sign in, as on the first start", icon = Icons.Rounded.WavingHand)
-                },
-                Entry("Check for updates", "new version release download github") {
-                    NavRow("Check for updates", {
-                        // A release already found opens at once; Update still looks for a newer one first.
-                        pendingUpdate?.let { update = it; return@NavRow }
-                        scope.launch {
-                            when (val r = UpdateCheck.checkNow(context)) {
-                                is UpdateCheck.Result.Newer -> update = r.release
-                                UpdateCheck.Result.UpToDate -> message = "You have the latest version (${BuildConfig.VERSION_NAME})."
-                                UpdateCheck.Result.NoReleases -> message = "No releases are published yet. Builds are on the GitHub branch for now."
-                                is UpdateCheck.Result.Failed -> message = "Couldn't check: ${r.reason}"
-                            }
-                        }
-                    }, summary = pendingUpdate?.let { "OpenTune ${it.version} is ready to install. You have ${BuildConfig.VERSION_NAME}." } ?: "Current version: ${BuildConfig.VERSION_NAME}", icon = Icons.Rounded.SystemUpdate, dot = pendingUpdate != null)
-                },
-                Entry("Check for updates automatically", "update new version release auto") {
-                    ToggleRow("Check for updates automatically", ui.checkForUpdates, { v -> AppSettings.updateUi { it.copy(checkForUpdates = v) }; com.opentune.data.UpdateCheck.schedule(context) }, summary = "Looks for a new release on GitHub every few hours, in the background too, and offers to install it", icon = Icons.Rounded.SystemUpdate)
-                },
-                Entry("Count this phone in usage numbers", "anonymous usage statistics analytics counter privacy telemetry") {
-                    ToggleRow(
-                        "Count this phone in usage numbers",
-                        ui.countUsage,
-                        { v -> AppSettings.updateUi { it.copy(countUsage = v) }; com.opentune.data.Usage.consentChanged(v) },
-                        summary = "Shares a random installation ID, app version, active dates and daily play totals. No hardware ID, account or song names. Reinstalls get a new ID; updates keep it.",
-                        icon = Icons.Rounded.Info,
-                    )
-                },
-                Entry("OpenTune community", "github discord community addons developer") { CommunityBanner() },
-                Entry("Support OpenTune", "donate upi pay money tip support developer") {
-                    NavRow("Support OpenTune", { supportDialog = true }, summary = "A small thank-you helps keep OpenTune going", icon = Icons.Rounded.Favorite)
-                },
-                Entry("Star on GitHub", "star github rate like") {
-                    NavRow("Star on GitHub", {
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, com.opentune.ui.components.Support.REPO.toUri())) }
-                    }, summary = "Helps other people find OpenTune", icon = Icons.Rounded.Star)
                 },
                 Entry("Source code", "github open source license gpl") {
                     NavRow("Source code", {

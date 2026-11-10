@@ -18,14 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.opentune.data.UpdateCheck
 
 /** Whether a newer release is waiting to be installed, the one [UpdateDot] marks. */
 @Composable
-fun updatePending(): Boolean {
-    val pending by UpdateCheck.pending.collectAsState()
-    return pending != null
-}
+fun updatePending(): Boolean = false
 
 /** The small red dot that marks the way to a waiting update. */
 @Composable

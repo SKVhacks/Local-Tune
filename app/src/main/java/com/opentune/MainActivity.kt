@@ -18,14 +18,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import com.opentune.data.account.AccountStore
-import androidx.compose.animation.togetherWith
 import com.opentune.data.settings.AppSettings
-import com.opentune.data.settings.WelcomeState
 import com.opentune.ui.AppRoot
-import com.opentune.ui.welcome.WelcomeScreen
 import com.opentune.ui.Links
 import com.opentune.ui.PlayerViewModel
 import com.opentune.ui.theme.OpenTuneTheme
@@ -46,9 +40,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        com.opentune.data.innertube.Innertube.regionOverride = runCatching {
-            getSystemService(android.telephony.TelephonyManager::class.java)?.networkCountryIso?.takeIf { it.length == 2 }
-        }.getOrNull() ?: android.content.res.Resources.getSystem().configuration.locales[0].country.takeIf { it.length == 2 }
         java.util.Locale.setDefault(resources.configuration.locales[0])
         enableEdgeToEdge()
         if (savedInstanceState == null) receive(intent)
@@ -88,33 +79,8 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     // Some TVs crop the picture's edges: keep pages and buttons inside the safe area.
                     androidx.compose.foundation.layout.Box(if (tv) Modifier.padding(horizontal = 28.dp, vertical = 16.dp) else Modifier) {
-                    // More than two releases behind, the app is only its update screen until it's updated.
-                    val required by com.opentune.data.UpdateLock.required.collectAsState()
-                    val behind by com.opentune.data.UpdateLock.behind.collectAsState()
-                    LaunchedEffect(required) { if (required != null && vm.isPlaying.value) vm.togglePlayPause() }
-                    if (required != null) com.opentune.ui.settings.UpdateRequiredScreen(required!!, behind) else {
-                    // A fresh install's welcome comes first; Home, built after it, starts from the picks.
-                    androidx.compose.animation.AnimatedContent(
-                        ui.welcome == WelcomeState.DUE,
-                        transitionSpec = {
-                            if (ui.reduceAnimation) {
-                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
-                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
-                            } else {
-                                (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(320, delayMillis = 80)) +
-                                    androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(420), initialScale = 0.96f)) togetherWith
-                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200))
-                            }
-                        },
-                        label = "welcome",
-                    ) { welcome ->
-                        val page: @androidx.compose.runtime.Composable () -> Unit = {
-                            if (welcome) WelcomeScreen(onDone = {}) else AppRoot(vm)
-                        }
-                        if (tv) com.opentune.ui.tv.TvRemoteSurface(page) else page()
-                    }
-                    }
-                    com.opentune.ui.account.ConfirmPairing()
+                    val page: @androidx.compose.runtime.Composable () -> Unit = { AppRoot(vm) }
+                    if (tv) com.opentune.ui.tv.TvRemoteSurface(page) else page()
                     }
                 }
             }
@@ -123,15 +89,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // The process may have started in the background, offline (after an update, say).
-        AccountStore.ensureProfile()
-        lifecycleScope.launchWhenStarted {
-            com.opentune.data.addons.AddonRefresh.refresh()
-        }
-        // Whether this version is still allowed to run (UpdateLock), at most once an hour.
-        lifecycleScope.launch { com.opentune.data.UpdateLock.refresh(this@MainActivity) }
-        // Playlist changes that couldn't reach YouTube Music last time try again.
-        if (com.opentune.data.library.PlaylistSync.pending.value.isNotEmpty()) com.opentune.data.library.PlaylistSync.flush()
+        // Files added or removed while the app was away show at once.
+        com.opentune.data.local.LocalMusic.rescan(0)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -140,7 +99,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun receive(intent: Intent?) {
-        if (!com.opentune.ui.account.PairingLinks.receive(intent)) Links.receive(intent)
+        Links.receive(intent)
     }
 
     /**

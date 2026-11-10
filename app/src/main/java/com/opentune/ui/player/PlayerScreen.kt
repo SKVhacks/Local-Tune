@@ -120,7 +120,6 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.opentune.data.LogExport
-import com.opentune.data.covers.AlbumCovers
 import com.opentune.data.library.LibraryStore
 import com.opentune.data.model.ROW_ART_PX
 import com.opentune.data.model.Song
@@ -131,7 +130,6 @@ import com.opentune.data.settings.PlayerStyle
 import com.opentune.data.settings.RemixPreset
 import com.opentune.data.settings.SoundSettings
 import com.opentune.data.settings.ThemeSettings
-import com.opentune.data.together.Together
 import com.opentune.playback.AudioFormatInfo
 import com.opentune.playback.PlaybackRequests
 import com.opentune.ui.LyricsState
@@ -197,7 +195,7 @@ data class PlayerUiState(
     /** The queue came from a playlist or album, so the shuffle button offers smart shuffle. */
     val smartShuffleAvailable: Boolean = false,
     /** Apple's animated cover for the song, to loop in its cover. */
-    val coverVideo: com.opentune.data.covers.AppleMotionArt.Motion? = null,
+    val coverVideo: CoverMotion? = null,
     /** Spotify's Canvas for the song, to loop behind the player. */
     val canvasVideo: String? = null,
     val loadingMessage: String? = null,
@@ -826,10 +824,8 @@ fun PlayerLayout(
             ) {
                 // "Playing from", whose room it is, or the remix pill.
                 val statusLine: @Composable () -> Unit = {
-                    val room by Together.room.collectAsState()
                     AnimatedContent(sound.isDefault, label = "remixPill") { normal ->
-                        if (room != null) {
-                            TogetherPill(room!!, actions.openTogether)
+                        if (false) {
                         } else if (normal) {
                             if (!state.ui.hideSongStatus) SongStatus(state.source)
                         } else {
@@ -1217,11 +1213,6 @@ fun PlayerLayout(
                                     { showOutput = true },
                                     enabled = enabled,
                                 )
-                                if (apple) {
-                                    val room by Together.room.collectAsState()
-                                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.16f)))
-                                    PillButton(Icons.Rounded.Person, "Listen together", room != null, actions.openTogether, enabled = enabled)
-                                }
                             }
                         },
                         secondContent = { enabled ->
@@ -1299,14 +1290,11 @@ fun PlayerLayout(
             SongMenuSheet(
                 current,
                 onDismiss = { showMenu = false },
-                top = { close -> MenuRow(Icons.Rounded.HighQuality, "Upgrade quality") { close(); PlaybackRequests.upgradeQuality() } },
                 tools = { close ->
                     MenuRow(Icons.Rounded.HighQuality, "Track details") { close(); showDetails = true }
                     MenuRow(Icons.Rounded.GraphicEq, "Signal path") { close(); showSignal = true }
-                    MenuRow(Icons.Rounded.Groups, "Listen together") { close(); actions.openTogether() }
                     MenuRow(Icons.Rounded.Bedtime, sleepLabel ?: "Sleep timer") { close(); showSleep = true }
                     MenuRow(Icons.Rounded.Tune, "Lyrics offset") { close(); showOffset = true }
-                    MenuRow(Icons.Rounded.Lyrics, "Lyrics source") { close(); showLyricsSource = true }
                     MenuRow(Icons.Rounded.Lyrics, if (state.ui.lyricsPreview) "Hide lyrics preview" else "Show lyrics preview") {
                         close()
                         AppSettings.updateUi { it.copy(lyricsPreview = !it.lyricsPreview) }
@@ -1333,7 +1321,6 @@ fun PlayerLayout(
             )
         }
         if (showOffset) LyricsOffsetDialog(current.videoId, autoOffsetMs, onDismiss = { showOffset = false })
-        if (showLyricsSource) LyricsSourceDialog(current, state.durationMs, onDismiss = { showLyricsSource = false })
         if (showDetails) TrackDetailsDialog(current, state.durationMs, onDismiss = { showDetails = false })
         if (showSignal) SignalPathDialog(state.audioFormat, onDismiss = { showSignal = false }, song = current)
     }
@@ -1667,30 +1654,6 @@ fun MiniPlayerBar(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier 
     )
 }
 
-/** Shown where "Playing from" goes while in a room: whose room, and how many are in. */
-@Composable
-private fun TogetherPill(room: Together.Room, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = {
-            Text(
-                when {
-                    room.hosting -> "Your room · ${room.members.size} listening"
-                    room.holding -> "Paused for you · ${room.hostName ?: "room"}"
-                    room.phase == Together.Phase.Live -> "With ${room.hostName ?: "the host"} · ${room.members.size} listening"
-                    else -> "Listening together"
-                },
-            )
-        },
-        leadingIcon = { Icon(Icons.Rounded.Groups, null, Modifier.size(18.dp)) },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
-    )
-}
-
 /**
  * Brings what it's on into focus as it appears: from a soft blur and a
  * touch smaller to sharp, over half a second. Blur needs Android 12; before
@@ -1829,3 +1792,6 @@ internal class PaneFlight {
         com.opentune.ui.components.PlayerMorph.flying = false
     }
 }
+
+/** A looping clip shown over a cover: kept for the player's layout, though songs on the phone have none. */
+data class CoverMotion(val url: String, val fallbackUrl: String? = null)

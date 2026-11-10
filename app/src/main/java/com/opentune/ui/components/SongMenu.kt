@@ -68,15 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.opentune.data.Ringtones
-import com.opentune.data.download.DownloadState
-import com.opentune.data.download.Downloads
-import com.opentune.data.isYouTubeId
 import com.opentune.data.library.HiddenList
 import com.opentune.data.library.LibraryStore
-import com.opentune.data.library.PlaylistLinks
-import com.opentune.data.library.PlaylistSync
 import com.opentune.data.local.LocalMusic
-import com.opentune.data.model.PlaylistPrivacy
 import com.opentune.data.model.ROW_ART_PX
 import com.opentune.data.model.Song
 import com.opentune.data.model.artworkAt
@@ -127,7 +121,6 @@ fun SongMenuSheet(
     val actions = LocalSongMenu.current
     val context = LocalContext.current
     val liked by LibraryStore.liked.collectAsState()
-    val downloads by Downloads.entries.collectAsState()
     val isLiked = liked.any { it.videoId == song.videoId }
     val hidden by LibraryStore.hidden.collectAsState()
     val playlists by LibraryStore.playlists.collectAsState()
@@ -135,10 +128,7 @@ fun SongMenuSheet(
     // A song smart shuffle mixed into one of the app's own playlists can be kept there.
     val keepIn = origin?.playlistId?.takeIf { song.smartShuffle }
         ?.let { id -> playlists.firstOrNull { it.id == id } }
-        ?.takeIf { p -> p.spotifyId == null && p.songs.none { it.videoId == song.videoId } }
-    val download = downloads[song.videoId]
-    // Files on this phone and songs on your server: no YouTube actions.
-    val local = !isYouTubeId(song.videoId)
+        ?.takeIf { p -> p.songs.none { it.videoId == song.videoId } }
     var pickPlaylist by remember { mutableStateOf(false) }
     var ringtone by remember { mutableStateOf(false) }
     val close = onDismiss
@@ -166,35 +156,11 @@ fun SongMenuSheet(
                 QuickAction(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Liked" else "Like", active = isLiked) {
                     LibraryStore.setLiked(song, !isLiked)
                 }
-                if (!local) {
-                    val (icon, label) = when (download?.state) {
-                        DownloadState.DONE -> Icons.Rounded.DeleteOutline to "Remove"
-                        DownloadState.QUEUED -> Icons.Rounded.Close to if (Downloads.waitingForWifi(context)) "Needs Wi-Fi" else "Waiting"
-                        DownloadState.DOWNLOADING -> Icons.Rounded.Close to "${(download.progress * 100).toInt()}%"
-                        DownloadState.FAILED -> Icons.Rounded.Download to "Retry"
-                        null -> Icons.Rounded.Download to "Download"
-                    }
-                    val ring = when (download?.state) {
-                        DownloadState.DOWNLOADING -> download.progress
-                        DownloadState.QUEUED -> -1f
-                        else -> null
-                    }
-                    QuickAction(icon, label, active = download?.state == DownloadState.DONE, progress = ring) {
-                        when (download?.state) {
-                            DownloadState.DONE, DownloadState.QUEUED, DownloadState.DOWNLOADING -> Downloads.remove(context, song.videoId)
-                            DownloadState.FAILED -> Downloads.retry(context, song.videoId)
-                            null -> Downloads.enqueue(context, song)
-                        }
-                    }
-                }
                 QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Playlist", active = false) { pickPlaylist = true }
-                if (!local) {
-                    QuickAction(Icons.Rounded.Share, "Share", active = false) {
-                        // The link goes with a picture of the song, like a now-playing card.
-                        val (at, length) = actions?.progressOf?.invoke(song) ?: (0L to 0L)
-                        com.opentune.ui.share.ShareCard.share(context, song, at, length)
-                        close()
-                    }
+                QuickAction(Icons.Rounded.Share, "Share", active = false) {
+                    // The song's file itself, to send to a friend or another app.
+                    shareFile(context, song)
+                    close()
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -204,26 +170,21 @@ fun SongMenuSheet(
         val card = LocalFloatingCard.current
         val close: () -> Unit = { card?.close() ?: onDismiss() }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            if (!local && download != null) {
-                val downloading = download.state == DownloadState.QUEUED || download.state == DownloadState.DOWNLOADING
-                MenuRow(if (downloading) Icons.Rounded.Close else Icons.Rounded.DeleteOutline,
-                    if (downloading) "Cancel download" else "Remove download") {
-                    Downloads.remove(context, song.videoId)
-                    close()
-                }
-            }
             if (actions != null) {
                 MenuRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Play next") { actions.playNext(song); close() }
                 MenuRow(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { actions.addToQueue(song); close() }
                 keepIn?.let { p -> MenuRow(Icons.AutoMirrored.Rounded.PlaylistAdd, "Keep in playlist") { close(); actions.keepInPlaylist(song, p.id) } }
-                if (!local) MenuRow(Icons.Rounded.Radio, "Start radio") { actions.startRadio(song); close() }
-                when {
-                    actions.viewArtist != null && !local -> MenuRow(Icons.Rounded.Person, "View artist") { close(); actions.viewArtist.invoke(song) }
+                // Every credited artist has a page: "A & B" offers both.
+                val names = LocalMusic.splitArtists(song.artist)
+                if (names.size > 1 && actions.viewArtistNamed != null) {
+                    names.forEach { name -> MenuRow(Icons.Rounded.Person, "View $name") { close(); actions.viewArtistNamed.invoke(song, name) } }
+                } else when {
+                    actions.viewArtist != null -> MenuRow(Icons.Rounded.Person, "View artist") { close(); actions.viewArtist.invoke(song) }
                     song.artistId != null -> MenuRow(Icons.Rounded.Person, "View artist") { close(); actions.openArtist(song.artistId!!) }
                 }
                 when {
                     song.albumId != null -> MenuRow(Icons.Rounded.Album, "Open album") { close(); actions.openAlbum(song.albumId!!) }
-                    actions.viewAlbum != null && !local -> MenuRow(Icons.Rounded.Album, "Open album") { close(); actions.viewAlbum.invoke(song) }
+                    actions.viewAlbum != null -> MenuRow(Icons.Rounded.Album, "Open album") { close(); actions.viewAlbum.invoke(song) }
                 }
             }
             if (top != null || tools != null) {
@@ -231,12 +192,12 @@ fun SongMenuSheet(
                 top?.invoke(this, close)
                 tools?.invoke(this, close)
             }
-            if (download?.state == DownloadState.DONE || (local && Ringtones.canUse(song))) {
+            if (Ringtones.canUse(song)) {
                 MenuRow(Icons.Rounded.NotificationsActive, "Set as ringtone") { ringtone = true }
             }
             if (actions != null) MenuRow(Icons.Rounded.ThumbDownOffAlt, "Not for me (dislike)") { close(); actions.dislike(song) }
             // Only suggestions are affected: the song still plays when picked, and stays in playlists.
-            if (actions != null && !com.opentune.data.radio.Radio.isRadio(song.videoId)) {
+            if (actions != null) {
                 if (hidden.hidesSong(song.videoId)) {
                     MenuRow(Icons.Rounded.Visibility, "Suggest this song again") { LibraryStore.unhideSong(song.videoId); close() }
                 } else {
@@ -379,44 +340,15 @@ private fun PlaylistPickRow(
 fun AddToPlaylistDialog(song: Song, onDone: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val allPlaylists by LibraryStore.playlists.collectAsState()
-    val playlists = remember(allPlaylists) { allPlaylists.filter { it.spotifyId == null } }
-    val signedIn by com.opentune.data.account.AccountStore.signedIn.collectAsState()
-    val account by com.opentune.data.library.LibraryCache.playlists.collectAsState()
-    val owned by com.opentune.data.library.LibraryCache.owned.collectAsState()
-    // A file on this phone can't go on YouTube Music.
-    val online = signedIn && isYouTubeId(song.videoId)
-    val accountPlaylists = if (online) remember(account, owned, playlists) { PlaylistLinks.pickable(account, owned, playlists) } else emptyList()
-    // Which of the account's playlists already have the song, looked up as the sheet opens.
-    val inAccount = remember(song.videoId) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
-    LaunchedEffect(accountPlaylists, song.videoId) {
-        val gate = kotlinx.coroutines.sync.Semaphore(ACCOUNT_LOOKUPS)
-        kotlinx.coroutines.coroutineScope {
-            accountPlaylists.take(MAX_ACCOUNT_CHECKED).filter { it.playlistId !in inAccount }.forEach { p ->
-                launch {
-                    gate.acquire()
-                    try {
-                        runCatching { com.opentune.data.MusicRepository.collection(p.browseId) }.getOrNull()
-                            ?.let { c -> inAccount[p.playlistId] = c.songs.any { it.videoId == song.videoId } }
-                    } finally {
-                        gate.release()
-                    }
-                }
-            }
-        }
-    }
-    var naming by remember { mutableStateOf(playlists.isEmpty() && accountPlaylists.isEmpty()) }
+    val playlists = allPlaylists
+    var naming by remember { mutableStateOf(playlists.isEmpty()) }
     var name by remember { mutableStateOf("") }
-    var saveOnline by remember { mutableStateOf(true) }
-    var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
     FloatingDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (naming) "New playlist" else "Add to playlist") },
         text = {
             if (naming) {
-                Column {
-                    OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("Name") })
-                    if (online) AccountCopyOptions(saveOnline, { saveOnline = it }, privacy, { privacy = it }, Modifier.padding(top = 12.dp))
-                }
+                OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("Name") })
             } else {
                 LazyColumn(Modifier.heightIn(max = 420.dp)) {
                     item {
@@ -450,43 +382,13 @@ fun AddToPlaylistDialog(song: Song, onDone: () -> Unit, onDismiss: () -> Unit) {
                             },
                         )
                     }
-                    if (accountPlaylists.isNotEmpty()) {
-                        item {
-                            Text(
-                                "On YouTube Music",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp),
-                            )
-                        }
-                        items(accountPlaylists, key = { "yt:${it.playlistId}" }) { p ->
-                            val has = inAccount[p.playlistId] == true
-                            PlaylistPickRow(
-                                title = p.title,
-                                subtitle = if (has) "Already in it" else p.subtitle.ifBlank { "YouTube Music" },
-                                art = { Artwork(p.thumbnailUrl, Modifier.fillMaxSize(), RectangleShape, placeholder = Icons.AutoMirrored.Rounded.QueueMusic) },
-                                added = has,
-                            ) {
-                                if (has) {
-                                    com.opentune.data.Pills.info("Already in ${p.title}", context)
-                                    onDone()
-                                    return@PlaylistPickRow
-                                }
-                                PlaylistSync.addToAccountPlaylist(p.playlistId, song) { ok ->
-                                    if (ok) com.opentune.data.Pills.done("Added to ${p.title}", context)
-                                    else com.opentune.data.Pills.error("Couldn't add it to ${p.title}", context)
-                                }
-                                onDone()
-                            }
-                        }
-                    }
                 }
             }
         },
         confirmButton = {
             if (naming) {
                 SheetButton("Create", onClick = {
-                    LibraryStore.createPlaylist(name, song, privacy.takeIf { online && saveOnline })
+                    LibraryStore.createPlaylist(name, song)
                     com.opentune.data.Pills.done("Added to ${name.trim().ifEmpty { "New playlist" }}", context)
                     onDone()
                 })
@@ -496,6 +398,16 @@ fun AddToPlaylistDialog(song: Song, onDone: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** Account playlists looked up at once, and at most, to mark the ones that already have the song. */
-private const val ACCOUNT_LOOKUPS = 4
-private const val MAX_ACCOUNT_CHECKED = 30
+
+/** Sends [song]'s audio file to another app: a messenger, Bluetooth, a cloud drive. */
+fun shareFile(context: android.content.Context, song: Song) {
+    if (!LocalMusic.isLocal(song.videoId)) return
+    val uri = LocalMusic.contentUri(song.videoId)
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = context.contentResolver.getType(uri) ?: "audio/*"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        putExtra(android.content.Intent.EXTRA_TITLE, "${song.title} · ${song.artist}")
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(android.content.Intent.createChooser(send, song.title).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}

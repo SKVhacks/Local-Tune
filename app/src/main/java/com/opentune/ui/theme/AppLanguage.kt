@@ -65,7 +65,6 @@ object AppLanguages {
 
     fun select(context: Context, language: AppLanguage) {
         context.getSharedPreferences("app_language", 0).edit().putString("tag", language.tag).apply()
-        com.opentune.data.MusicRepository.refreshHomeRecommendations()
         com.opentune.ui.ScreenCache.clear()
         if (Build.VERSION.SDK_INT >= 33) {
             context.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.forLanguageTags(language.tag)

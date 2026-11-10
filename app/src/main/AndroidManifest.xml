@@ -2,21 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Casting only: finding TVs and speakers on the home Wi-Fi and serving
+         them the song from the phone. No music is fetched from the internet. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Casting: finding TVs and speakers on the Wi-Fi. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <!-- Naming a song playing nearby; only asked for when that's used. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Scanning a TV's sign-in code in the app; only asked for when that's used. -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <!-- Approximate only: used once to find radio stations nearby, never kept. -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Downloads run as a WorkManager foreground job. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 16+: the playing song as a Live Update in the status bar. Granted at install. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -33,8 +26,6 @@
          older saving the ringtone's copy to shared storage. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    <!-- Installing an update downloaded from GitHub Releases; Android still asks each time. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- The phone's own equalizer, opened from the Equalizer page. -->
     <queries>
@@ -46,11 +37,6 @@
     <!-- The same app runs on Android TV, driven by the remote: nothing here is required hardware. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.location" android:required="false" />
-    <uses-feature android:name="android.hardware.location.network" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
 
     <application
@@ -67,14 +53,6 @@
         android:localeConfig="@xml/locales_config"
         android:networkSecurityConfig="@xml/network_security_config">
 
-        <activity android:name=".AddonApprovalActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="opentune" android:host="addon-approve" />
-            </intent-filter>
-        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -91,56 +69,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- Open YouTube Music and YouTube links: songs, playlists, albums, channels.
-                 Not autoVerify: these domains aren't ours, so the user picks OpenTune. -->
-            <intent-filter tools:ignore="AppLinkWarning">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" />
-                <data android:host="music.youtube.com" />
-                <data android:host="www.youtube.com" />
-                <data android:host="youtube.com" />
-                <data android:host="m.youtube.com" />
-                <data android:host="youtu.be" />
-            </intent-filter>
+            <!-- Audio files opened with OpenTune from a file manager or another app. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="opentune" android:host="pair" />
-            </intent-filter>
-            <intent-filter tools:ignore="AppLinkWarning">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="justshivv.github.io" android:pathPrefix="/Opentune/pair/" />
-            </intent-filter>
-            <!-- Invites to a Listen together room: opentune://together/<code>. -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="opentune" android:host="together" />
-            </intent-filter>
-            <!-- GitHub Pages cannot publish assetlinks.json at the domain root;
-                 browsers use the invite landing page when Android has no default handler. -->
-            <intent-filter tools:ignore="AppLinkWarning">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="justshivv.github.io" android:pathPrefix="/Opentune/together/" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="audio/*" />
             </intent-filter>
             <!-- "Play … on OpenTune" from the Assistant. -->
             <intent-filter>
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            <!-- Shared links ("Share to OpenTune"). -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 
@@ -218,7 +158,7 @@
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <!-- A media library: Android Auto and other media browsers can
-                     browse Home, Recent and Library and search. -->
+                     browse Recent, Albums, Artists and Library, and search. -->
                 <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
@@ -248,20 +188,6 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
-        <!-- Exportify in its own screen, for "Export from Spotify". -->
-        <activity
-            android:name=".ui.spotify.ExportifyActivity"
-            android:exported="false"
-            android:theme="@style/Theme.OpenTune"
-            android:windowSoftInputMode="adjustResize" />
-
-        <!-- Spotify's sign-in in its own screen, for Canvas. -->
-        <activity
-            android:name=".ui.spotify.SpotifyConnectActivity"
-            android:exported="false"
-            android:theme="@style/Theme.OpenTune"
-            android:windowSoftInputMode="adjustResize" />
-
         <!-- The home-screen widget. -->
 
         <receiver android:name=".widget.AlbumArtWidget" android:exported="false" android:label="@string/widget_album_art_label">
@@ -284,29 +210,6 @@
                 android:resource="@xml/widget_now_playing_info" />
         </receiver>
 
-        <!-- "Name that song": a home-screen widget and a Quick Settings tile. -->
-        <receiver
-            android:name=".widget.RecognizeWidget"
-            android:exported="false"
-            android:label="@string/recognize_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_recognize_info" />
-        </receiver>
-        <service
-            android:name=".widget.RecognizeTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_recognize"
-            android:label="@string/recognize_label"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
         <!-- Media buttons (the widget's, a headset's after the app was closed)
              start the player and resume the saved queue. -->
         <receiver
@@ -316,17 +219,6 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
-
-        <!-- The package installer's answers while an update installs. -->
-        <receiver
-            android:name=".data.Updater$StatusReceiver"
-            android:exported="false" />
-
-        <!-- WorkManager's foreground service, declared for the download jobs' type. -->
-        <service
-            android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:foregroundServiceType="dataSync"
-            tools:node="merge" />
 
     </application>
 

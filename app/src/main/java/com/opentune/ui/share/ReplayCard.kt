@@ -56,8 +56,6 @@ import androidx.core.graphics.withClip
 import com.materialkolor.ktx.themeColorOrNull
 import com.opentune.R
 import com.opentune.data.DebugLog as Log
-import com.opentune.data.MusicRepository
-import com.opentune.data.account.AccountStore
 import com.opentune.data.history.ReplaySummary
 import com.opentune.data.history.Wrapped
 import com.opentune.data.model.Song
@@ -188,12 +186,7 @@ object ReplayCard {
         val albums = c.topAlbums.map { async { load(it.thumbnailUrl, 400) } }
         val artists = c.topArtists.map { a ->
             async {
-                val photo = a.song?.let { song ->
-                    withTimeoutOrNull(PHOTO_WAIT_MS) {
-                        runCatching { MusicRepository.artistIdFor(song)?.let { MusicRepository.artist(it).thumbnailUrl } }.getOrNull()
-                    }
-                }
-                photo?.let { load(it, 200) } ?: load(a.thumbnailUrl, 200)
+                load(a.thumbnailUrl, 200)
             }
         }
         val logo = runCatching { ContextCompat.getDrawable(context, com.opentune.core.R.drawable.ic_stat_opentune)?.toBitmap(96, 96) }.getOrNull()
@@ -467,10 +460,8 @@ fun ReplayShareSheet(summary: ReplaySummary, period: String, onDismiss: () -> Un
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val ui by AppSettings.ui.collectAsState()
-    val signedIn by AccountStore.signedIn.collectAsState()
-    val account by AccountStore.account.collectAsState()
     val year = remember { Calendar.getInstance().get(Calendar.YEAR) }
-    val name = account?.name?.takeIf { signedIn }
+    val name: String? = null
     val content = remember(summary, period, name) { ReplayCard.content(summary, year, period, name) }
     val fallback = MaterialTheme.colorScheme.primary.toArgb()
     var card by remember { mutableStateOf<Bitmap?>(null) }

@@ -4,12 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.opentune.data.MusicRepository
 import com.opentune.data.model.BrowseType
 import com.opentune.data.model.ShelfItem
 import com.opentune.data.model.Song
 import com.opentune.data.model.UiState
-import io.ktor.client.plugins.ResponseException
 import java.io.IOException
 import java.net.UnknownHostException
 import kotlinx.coroutines.CancellationException
@@ -20,11 +18,6 @@ import kotlinx.coroutines.launch
 /** Something a person can read, rather than a stack of HTML from a refused request. */
 fun friendlyError(e: Throwable): String = when (e) {
     is UnknownHostException -> "You're offline. Check your connection and try again."
-    is ResponseException -> when (e.response.status.value) {
-        403, 429 -> "YouTube Music turned the request away. Wait a moment and try again."
-        in 500..599 -> "YouTube Music is having trouble right now."
-        else -> "YouTube Music answered with an error (${e.response.status.value})."
-    }
     is IOException -> "Network error. Check your connection and try again."
     else -> e.message?.take(160) ?: "Something went wrong."
 }
@@ -38,24 +31,11 @@ fun formatTime(ms: Long): String {
 }
 
 fun ShelfItem.toSong(): Song? = videoId?.let {
-    // The credit, not the card's first word: "Song • Karan Aujla" played as by "Song", which then
-    // looked its lyrics up under that name and found another song's.
-    Song(videoId = it, title = title, artist = com.opentune.data.innertube.InnertubeParser.artistFromSubtitle(subtitle), thumbnailUrl = thumbnailUrl, isExplicit = explicit.takeIf { e -> e })
+    Song(videoId = it, title = title, artist = subtitle.substringBefore(" • "), thumbnailUrl = thumbnailUrl, isExplicit = explicit.takeIf { e -> e })
 }
 
-fun ShelfItem.type(): BrowseType? = browseId?.let(MusicRepository::typeOf)
-
-/** What a long press on this card opens: an album's or playlist's menu, or a song's. Artists have none. */
-fun ShelfItem.cardMenu(): com.opentune.ui.components.CardMenu? {
-    val type = type()
-    val id = browseId
-    return when {
-        id != null && (type == BrowseType.ALBUM || type == BrowseType.PLAYLIST) ->
-            com.opentune.ui.components.CardMenu.ForList(com.opentune.ui.components.MenuList(id, title, subtitle, thumbnailUrl, type))
-        id == null -> toSong()?.let { com.opentune.ui.components.CardMenu.ForSong(it) }
-        else -> null
-    }
-}
+/** What a long press on this card opens: a song's menu. */
+fun ShelfItem.cardMenu(): com.opentune.ui.components.CardMenu? = toSong()?.let { com.opentune.ui.components.CardMenu.ForSong(it) }
 
 /**
  * What screens loaded recently, by loader key, so going back to a page shows

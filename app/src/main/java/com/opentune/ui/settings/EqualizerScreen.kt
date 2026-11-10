@@ -101,11 +101,9 @@ private const val HIGH_HZ = 20_000.0
 fun EqualizerScreen(contentPadding: PaddingValues, onBack: () -> Unit) {
     val eq by AppSettings.equalizer.collectAsState()
     val preset = EqPreset.entries.firstOrNull { it.bands == eq.bands }
-    var picking by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val phoneEq = remember { com.opentune.playback.PhoneEqualizer.available(context) }
     var group by remember { mutableStateOf(preset?.group ?: EqGroup.SIGNATURE) }
-    if (picking) HeadphonePickerDialog(onDismiss = { picking = false })
     // Each band's shown value springs to the saved one, so a preset morphs into place.
     val shown = eq.bands.mapIndexed { i, g ->
         animateFloatAsState(g, spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), label = "band$i").value
@@ -181,22 +179,6 @@ fun EqualizerScreen(contentPadding: PaddingValues, onBack: () -> Unit) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(EqPreset.entries.filter { it.group == group }, key = { it.name }) { p ->
                     PresetCard(p, selected = p == preset) { AppSettings.updateEqualizer { it.copy(enabled = true, bands = p.bands) } }
-                }
-            }
-        }
-        item { GroupLabel("Headphones") }
-        item {
-            GroupCard {
-                val hp = eq.headphone
-                NavRow(
-                    hp?.name ?: "Correct for your headphones",
-                    { picking = true },
-                    summary = hp?.let { "AutoEq correction measured by ${it.source} · ${it.filters.size} filters, ${formatDb(it.preampDb)} preamp" }
-                        ?: "Pick your model from AutoEq's thousands of measurements",
-                    icon = com.opentune.ui.player.PlayerIcons.Headphones,
-                )
-                if (hp != null) {
-                    SettingRow("Turn off headphone correction", icon = Icons.Rounded.Close, onClick = { AppSettings.updateEqualizer { it.copy(headphone = null) } })
                 }
             }
         }

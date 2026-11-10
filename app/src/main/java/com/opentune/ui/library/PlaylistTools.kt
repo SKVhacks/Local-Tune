@@ -58,13 +58,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.opentune.data.MusicRepository
-import com.opentune.data.download.DownloadState
-import com.opentune.data.download.Downloads
 import com.opentune.data.history.History
 import com.opentune.data.library.LibraryStore
-import com.opentune.data.model.SearchFilter
-import com.opentune.data.model.SearchResult
 import com.opentune.data.model.Song
 import com.opentune.data.model.artworkAt
 import com.opentune.data.model.ROW_ART_PX
@@ -73,107 +68,9 @@ import com.opentune.ui.components.FloatingCard
 import com.opentune.ui.components.FloatingDialog
 import com.opentune.ui.components.MenuRow
 import com.opentune.ui.components.SheetButton
-import com.opentune.data.download.downloadSelection
 import com.opentune.ui.components.Haptics
 import com.opentune.ui.components.rememberHaptics
 import kotlinx.coroutines.delay
-
-/**
- * Download every song in a list, with how far it's got: "Download",
- * "Downloading 4 of 12", then "Downloaded". Files on the phone and songs
- * already saved are left as they are. A rising run of taps says when the
- * last one is done.
- */
-/** The list a [DownloadAllButton] downloads, kept so the library can show it as a list of its downloads. */
-data class DownloadedListInfo(val id: String, val title: String, val subtitle: String, val thumbnailUrl: String?)
-
-@Composable
-fun DownloadAllButton(songs: List<Song>, modifier: Modifier = Modifier, list: DownloadedListInfo? = null) {
-    val context = LocalContext.current
-    val haptics = rememberHaptics()
-    val entries by Downloads.entries.collectAsState()
-    val selection = remember(songs, entries) { downloadSelection(songs, entries) }
-    val wanted = selection.wanted
-    val done = selection.complete.size
-    val going = selection.active.size
-    var options by remember { mutableStateOf(false) }
-    var confirmRemove by remember { mutableStateOf(false) }
-    val all = wanted.isNotEmpty() && done == wanted.size
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(all) { if (all && started) haptics.pattern(Haptics.Pattern.DONE) }
-    // A list downloaded in full before lists were kept: keep it now, so it shows in the library too.
-    LaunchedEffect(list?.id, selection.stored.size, wanted.size) {
-        if (list != null && wanted.isNotEmpty() && selection.stored.size == wanted.size && com.opentune.data.download.DownloadedLists.get(list.id) == null) {
-            com.opentune.data.download.DownloadedLists.save(list.id, list.title, list.subtitle, list.thumbnailUrl, songs.map { it.videoId })
-        }
-    }
-    val progress by animateFloatAsState(if (wanted.isEmpty()) 0f else done.toFloat() / wanted.size, tween(500), label = "downloaded")
-    val scheme = MaterialTheme.colorScheme
-    val downloadRemaining = {
-        started = true
-        wanted.forEach { Downloads.enqueue(context, it) }
-        list?.let { com.opentune.data.download.DownloadedLists.save(it.id, it.title, it.subtitle, it.thumbnailUrl, songs.map { s -> s.videoId }) }
-    }
-    if (options) FloatingCard(onDismiss = { options = false }, title = "Playlist downloads", icon = Icons.Rounded.Download) {
-        Text("$done of ${wanted.size} songs saved · $going pending", Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.bodyMedium)
-        if (done + going < wanted.size) MenuRow(Icons.Rounded.Download, "Download remaining songs") {
-            downloadRemaining()
-            options = false
-        }
-        if (going > 0) MenuRow(Icons.Rounded.Close, "Cancel downloads") {
-            started = false
-            Downloads.cancelAll(context, wanted)
-            options = false
-        }
-        if (selection.stored.isNotEmpty()) MenuRow(Icons.Rounded.DeleteOutline, "Remove all downloads") {
-            options = false
-            confirmRemove = true
-        }
-    }
-    if (confirmRemove) FloatingDialog(
-        onDismissRequest = { confirmRemove = false },
-        title = { Text("Remove playlist downloads?") },
-        text = { Text("Removes this list’s downloaded audio and cancels unfinished downloads. Your playlist stays in your library. Songs shared with other playlists will also need a connection to play.") },
-        confirmButton = { SheetButton("Remove downloads", onClick = {
-            started = false
-            Downloads.removeAll(context, wanted)
-            list?.let { com.opentune.data.download.DownloadedLists.remove(it.id) }
-            confirmRemove = false
-        }) },
-        dismissButton = { SheetButton("Keep downloads", onClick = { confirmRemove = false }, closes = true) },
-    )
-    Row(
-        modifier
-            .height(44.dp)
-            .clip(CircleShape)
-            .background(scheme.surfaceContainerHighest)
-            .clickable(enabled = wanted.isNotEmpty()) {
-                haptics.press()
-                if (selection.stored.isNotEmpty()) options = true else downloadRemaining()
-            }
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
-            when {
-                all -> Icon(Icons.Rounded.DownloadDone, null, tint = scheme.primary, modifier = Modifier.size(22.dp))
-                going > 0 -> CircularProgressIndicator(progress = { progress }, strokeWidth = 2.5.dp, modifier = Modifier.size(20.dp), trackColor = scheme.onSurface.copy(alpha = 0.15f))
-                else -> Icon(Icons.Rounded.Download, null, modifier = Modifier.size(22.dp))
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            when {
-                all -> "Downloaded · Manage"
-                going > 0 -> "Downloading · $done/${wanted.size}"
-                done > 0 -> "Download the other ${wanted.size - done}"
-                else -> "Download all"
-            },
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
 
 /** Opens [AddSongsSheet]; for a playlist made in the app. */
 @Composable
@@ -204,30 +101,19 @@ fun AddSongsSheet(playlistId: String, onDismiss: () -> Unit) {
     val playlists by LibraryStore.playlists.collectAsState()
     val playlist = playlists.firstOrNull { it.id == playlistId }
     val inList = playlist?.songs?.map { it.videoId }?.toSet().orEmpty()
-    val progress by com.opentune.data.spotify.SpotifyPlaylistWrites.progress.collectAsState()
+    val library by com.opentune.data.local.LocalMusic.library.collectAsState()
     val records by History.records.collectAsState()
     val recent = remember(records) { History.recents(records, 20) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Song>?>(null) }
-    var searching by remember { mutableStateOf(false) }
-    var searchError by remember { mutableStateOf<String?>(null) }
-    var attempt by remember { mutableStateOf(0) }
-    LaunchedEffect(query, attempt) {
-        val q = query.trim()
-        searchError = null
-        if (q.isEmpty()) { results = null; searching = false; return@LaunchedEffect }
-        // Wait for a pause in the typing, then ask.
-        delay(350)
-        searching = true
-        try {
-            results = MusicRepository.search(q, SearchFilter.SONGS)
-                .mapNotNull { (it as? SearchResult.Track)?.song ?: (it as? SearchResult.TopTrack)?.song }
-                .distinctBy { it.videoId }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            searchError = com.opentune.ui.friendlyError(e)
-        } finally { searching = false }
+    val searching = false
+    LaunchedEffect(query, library) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) { results = null; return@LaunchedEffect }
+        delay(150)
+        results = library?.songs.orEmpty().filter {
+            it.title.lowercase().contains(q) || it.artist.lowercase().contains(q) || it.albumName?.lowercase()?.contains(q) == true
+        }.take(200)
     }
     FloatingCard(
         onDismiss = onDismiss,
@@ -239,7 +125,7 @@ fun AddSongsSheet(playlistId: String, onDismiss: () -> Unit) {
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                placeholder = { Text("Search for songs") },
+                placeholder = { Text("Search your songs") },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 shape = RoundedCornerShape(18.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -260,13 +146,8 @@ fun AddSongsSheet(playlistId: String, onDismiss: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             )
-            searchError?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(10.dp))
-                androidx.compose.material3.TextButton(onClick = { attempt++ }) { Text("Retry search") }
-            }
             list.forEach { song ->
-                AddRow(song, song.videoId in inList,
-                    progress[com.opentune.data.spotify.SpotifyPlaylistWrites.SaveKey(playlistId, song.videoId)]) {
+                AddRow(song, song.videoId in inList) {
                     LibraryStore.addToPlaylist(playlistId, song)
                 }
             }
@@ -276,14 +157,14 @@ fun AddSongsSheet(playlistId: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-internal fun AddRow(song: Song, added: Boolean, progress: com.opentune.data.spotify.SpotifyPlaylistWrites.SaveProgress? = null, onAdd: () -> Unit) {
+internal fun AddRow(song: Song, added: Boolean, onAdd: () -> Unit) {
     val haptics = rememberHaptics()
     val pop by animateFloatAsState(if (added) 1f else 0f, tween(260), label = "added")
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable(enabled = !added && progress?.busy != true) { haptics.press(); onAdd() }
+            .clickable(enabled = !added) { haptics.press(); onAdd() }
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -291,10 +172,10 @@ internal fun AddRow(song: Song, added: Boolean, progress: com.opentune.data.spot
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(song.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (added) "Added" else progress?.message ?: song.artist,
+            Text(if (added) "Added" else song.artist,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (!added && progress?.failed == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (progress?.failed == true) 3 else 2, overflow = TextOverflow.Ellipsis)
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Box(
             Modifier
@@ -304,12 +185,10 @@ internal fun AddRow(song: Song, added: Boolean, progress: com.opentune.data.spot
                 .background(if (added) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center,
         ) {
-            if (!added && progress?.busy == true) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else AnimatedContent(added, transitionSpec = { (fadeIn(tween(180)) + scaleIn(tween(220), 0.6f)) togetherWith fadeOut(tween(120)) }, label = "addIcon") { a ->
+            AnimatedContent(added, transitionSpec = { (fadeIn(tween(180)) + scaleIn(tween(220), 0.6f)) togetherWith fadeOut(tween(120)) }, label = "addIcon") { a ->
                 Icon(
                     if (a) Icons.Rounded.Check else Icons.Rounded.Add,
-                    if (a) "Added" else if (progress?.failed == true) "Retry adding to playlist" else "Add to playlist",
+                    if (a) "Added" else "Add to playlist",
                     tint = if (a) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp),
                 )
@@ -358,27 +237,21 @@ private fun ListHeart(saved: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The row under a list's Play and Shuffle: download it all, and for the app's own playlists, add songs. */
+/** The row under a list's Play and Shuffle: for the app's own playlists, add songs, and share. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ListTools(
     songs: List<Song>,
     onAddSongs: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    list: DownloadedListInfo? = null,
     /** Whether the list's heart is on; null shows no heart (the app's own playlists). */
     saved: Boolean? = null,
     onSave: () -> Unit = {},
     onShare: (() -> Unit)? = null,
-    /** For a playlist on the account's YouTube Music: who can see it, and changing that. */
-    privacy: com.opentune.data.model.PlaylistPrivacy? = null,
-    onPrivacy: (() -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (saved != null) ListHeart(saved, onSave)
-        if (onPrivacy != null) com.opentune.ui.components.PrivacyButton(privacy, onPrivacy)
         if (onAddSongs != null) AddSongsButton(onAddSongs)
-        if (songs.isNotEmpty()) DownloadAllButton(songs, list = list)
         if (onShare != null) RoundToolButton(Icons.Rounded.Share, "Share", onShare)
     }
 }

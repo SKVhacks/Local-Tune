@@ -33,16 +33,12 @@ object ListShare {
     fun shareSpotify(context: Context, title: String, spotifyId: String, covers: List<String?> = emptyList(), subtitle: String? = null) =
         send(context, "$title\nhttps://open.spotify.com/playlist/$spotifyId", title, covers, subtitle)
 
-    /**
-     * A playlist made in the app has no address of its own, so it goes as
-     * its songs, each with its link, up to [MAX_SONGS] of them.
-     */
+    /** A playlist made in the app goes as its list of songs, up to [MAX_SONGS] of them. */
     internal fun localText(name: String, songs: List<Song>): String = buildString {
         append(name).append(" · ").append(songs.size).append(if (songs.size == 1) " song" else " songs").append('\n')
         songs.take(MAX_SONGS).forEachIndexed { i, s ->
             append('\n').append(i + 1).append(". ").append(s.title)
             if (s.artist.isNotBlank()) append(" – ").append(s.artist)
-            append("\nhttps://music.youtube.com/watch?v=").append(s.videoId)
         }
         if (songs.size > MAX_SONGS) append("\n\n…and ").append(songs.size - MAX_SONGS).append(" more")
         append("\n\nShared from OpenTune")

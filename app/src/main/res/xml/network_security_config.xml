@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plain http is allowed so a music server on a home network (often
-     http://192.168.x.x:4533) works. Everything the app itself talks to,
-     YouTube included, is https. -->
+<!-- Plain http on the home network: casting to DLNA speakers and TVs. -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
     <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
 </network-security-config>

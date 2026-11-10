@@ -611,7 +611,7 @@ fun ArtworkPane(
     /** A soft light in the cover's colour under it, swelling with the bass. */
     glow: Boolean = false,
     /** Apple's animated cover for this song, looped over the still one. */
-    video: com.opentune.data.covers.AppleMotionArt.Motion? = null,
+    video: CoverMotion? = null,
     /**
      * Spotify's Canvas is playing behind the player: the still cover over it fades away,
      * keeping its place, so the clip shows and swipes and taps on it still work.

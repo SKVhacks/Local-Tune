@@ -3,17 +3,13 @@ package com.opentune.ui
 import com.opentune.ui.tv.tvMediaKeys
 import com.opentune.ui.tv.TvMediaAction
 
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.Album
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.rounded.Podcasts
-import com.opentune.ui.server.ServerAlbumScreen
-import com.opentune.ui.server.ServerArtistScreen
-import com.opentune.ui.server.ServerArtistsScreen
-import com.opentune.ui.server.ServerNav
-import com.opentune.ui.server.ServerPlaylistScreen
-import com.opentune.ui.server.ServerScreen
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.animation.EnterExitState
 import android.net.Uri
@@ -44,8 +40,6 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.unit.toSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
@@ -77,40 +71,23 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.opentune.data.MusicRepository
 import kotlinx.coroutines.flow.first
-import com.opentune.data.model.SearchResult
-import com.opentune.data.model.SearchFilter
 import com.opentune.data.library.LibraryStore
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import com.opentune.data.model.BrowseItem
-import com.opentune.data.model.BrowseType
-import com.opentune.data.model.ShelfItem
-import com.opentune.ui.browse.ArtistScreen
-import com.opentune.ui.browse.CollectionScreen
 import com.opentune.ui.browse.SongActions
-import com.opentune.ui.account.LoginScreen
 import com.opentune.ui.components.LocalBackdrop
 import com.opentune.ui.components.LocalHazeState
 import com.opentune.ui.components.LocalSongMenu
 import com.opentune.ui.components.SongMenuActions
-import com.opentune.ui.library.DownloadsScreen
-import com.opentune.ui.library.LibraryNav
 import com.opentune.ui.library.LikedScreen
 import com.opentune.ui.library.LocalPlaylistScreen
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.opentune.ui.explore.ExploreScreen
-import com.opentune.ui.explore.MoodScreen
-import com.opentune.ui.home.HomeScreen
-import com.opentune.ui.library.LibraryScreen
-import com.opentune.ui.library.LocalMusicScreen
 import com.opentune.ui.library.ReplayScreen
 import com.opentune.ui.wrapped.WrappedScreen
 import com.opentune.ui.player.MiniPlayerBar
 import com.opentune.ui.player.PlayerScreen
-import com.opentune.ui.search.SearchScreen
 import com.opentune.ui.settings.EqualizerScreen
 import com.opentune.ui.settings.SettingsScreen
 import dev.chrisbanes.haze.hazeSource
@@ -124,9 +101,9 @@ object TabEvents {
 }
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    HOME("home", "Home", Icons.Outlined.Home, Icons.Rounded.Home),
-    EXPLORE("explore", "Explore", Icons.Outlined.Explore, Icons.Rounded.Explore),
-    PODCASTS("podcasts", "Podcasts", Icons.Outlined.Podcasts, Icons.Rounded.Podcasts),
+    HOME("songs", "Songs", Icons.Outlined.MusicNote, Icons.Rounded.MusicNote),
+    ALBUMS("albums", "Albums", Icons.Outlined.Album, Icons.Rounded.Album),
+    ARTISTS("artists", "Artists", Icons.Outlined.Person, Icons.Rounded.Person),
     LIBRARY("library", "Library", Icons.Outlined.LibraryMusic, Icons.Rounded.LibraryMusic),
 }
 
@@ -145,16 +122,13 @@ fun AppRoot(vm: PlayerViewModel) {
     var playerCovers by remember { mutableStateOf(false) }
     val haze = rememberHazeState()
     val uiScope = rememberCoroutineScope()
-    val artistLookup = remember { java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null) }
     val backdrop = rememberLayerBackdrop()
     // Floating glass blurs a recording of the page (and bends it, with Liquid Glass on).
     val sampled = com.opentune.ui.components.backdropBlurOn()
     // Scrolling any page down folds the bottom bar into one row; scrolling up unfolds it.
     val chromeScroll = rememberChromeScroll()
     val chromeUi by com.opentune.data.settings.AppSettings.ui.collectAsState()
-    // Explore without a tab of its own lives on the Search page instead.
-    val separateExplore = chromeUi.separateExplore
-    val dockTabs = remember(separateExplore) { if (separateExplore) Tab.entries.toList() else Tab.entries - Tab.EXPLORE }
+    val dockTabs = remember { Tab.entries.toList() }
     val chromeTabs = remember(dockTabs) { dockTabs.map { ChromeTab(it.label, it.icon, it.selectedIcon) } }
     // A page opened from inside the player (the artist, from a tap on their
     // name) folds the player away; back from that page opens the player
@@ -184,77 +158,22 @@ fun AppRoot(vm: PlayerViewModel) {
         }
     }
 
-    // A newer release on GitHub, offered with an Update button. Checked each
-    // time the app comes to the front and periodically while it stays there (the
-    // check itself goes online at most every few hours), since a music app
-    // is rarely started afresh.
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    var update by remember { mutableStateOf<com.opentune.data.UpdateCheck.Release?>(null) }
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            com.opentune.data.Usage.active()
-            com.opentune.ui.components.Support.usedToday(appContext)
-            while (true) {
-                if (com.opentune.data.settings.AppSettings.ui.value.checkForUpdates && update == null) {
-                    update = com.opentune.data.UpdateCheck.checkIfDue(appContext)
-                }
-                com.opentune.data.config.RemoteConfig.refresh()
-                com.opentune.data.addons.AddonRefresh.refresh()
-                kotlinx.coroutines.delay(5 * 60 * 1000L)
-            }
-        }
-    }
     // After an update, once: what's changed.
     var whatsNew by remember { mutableStateOf<List<Pair<String, List<com.opentune.ui.components.WhatsNew.Note>>>>(emptyList()) }
     LaunchedEffect(Unit) { whatsNew = com.opentune.ui.components.WhatsNew.due(appContext, com.opentune.BuildConfig.VERSION_NAME) }
-    if (whatsNew.isNotEmpty() && update == null) {
+    if (whatsNew.isNotEmpty()) {
         com.opentune.ui.components.WhatsNewSheet(whatsNew, com.opentune.BuildConfig.VERSION_NAME, onDismiss = { whatsNew = emptyList() })
     }
-    // Once a month each, after some days of use, a GitHub star or Discord invitation,
-    // sliding up above the dock; never over an update or What's new, and not
-    // straight after opening.
-    var invite by remember { mutableStateOf<com.opentune.ui.components.Support.Invite?>(null) }
-    var askStar by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(45_000)
-        invite = com.opentune.ui.components.Support.due(appContext)
-        askStar = invite != null
-    }
-    val starCard: @Composable () -> Unit = {
-        val runtime by com.opentune.data.config.RemoteConfig.state.collectAsState()
-        androidx.compose.animation.AnimatedVisibility(
-            visible = askStar && runtime.communityPrompts && !playerOpen && update == null && whatsNew.isEmpty(),
-            enter = androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.8f, stiffness = 300f)) { it } + fadeIn(),
-            exit = androidx.compose.animation.slideOutVertically(tween(220)) { it } + fadeOut(tween(180)),
-        ) {
-            invite?.let { com.opentune.ui.components.InviteCard(it, onDismiss = { askStar = false }) }
-        }
-    }
-    update?.let { r ->
-        com.opentune.ui.settings.UpdateDialog(
-            r,
-            onDismiss = { update = null },
-            onNotNow = { shown -> com.opentune.data.UpdateCheck.skip(appContext, shown.version); update = null },
-        )
-    }
-
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
-    // Explore's tab turned off while on it: back to Home, Explore is on the Search page now.
-    LaunchedEffect(separateExplore) {
-        if (!separateExplore && tab == Tab.EXPLORE) {
-            tab = Tab.HOME
-            if (route == Tab.EXPLORE.route) nav.popBackStack(Tab.HOME.route, inclusive = false)
-        }
-    }
     LaunchedEffect(route) {
         Tab.entries.firstOrNull { it.route == route }?.let { tab = it }
         chromeScroll.expand()
     }
     LaunchedEffect(playbackError) { playbackError?.let { com.opentune.data.Pills.error(it) } }
-    LaunchedEffect(Unit) { com.opentune.data.together.Together.notices.collect { com.opentune.data.Pills.info(it) } }
     LaunchedEffect(Unit) { com.opentune.cast.Cast.messages.collect { com.opentune.data.Pills.info(it) } }
     // A newer pill cuts the one showing short, so a run of swipes doesn't queue up notes.
     LaunchedEffect(Unit) { com.opentune.ui.components.QueueNotices.messages.collect { com.opentune.data.Pills.done(it) } }
@@ -272,37 +191,13 @@ fun AppRoot(vm: PlayerViewModel) {
             smartShuffle = { songs, source -> vm.smartShuffle(songs, source) },
         )
     }
-    val openItem: (ShelfItem) -> Unit = remember(nav, vm) { { item ->
-        val browseId = item.browseId
-        when {
-            browseId != null -> nav.openBrowse(browseId)
-            else -> item.toSong()?.let { vm.play(it, "Home") }
-        }
-    } }
-    // A long press on an album or playlist card: its songs are fetched when an action needs them.
-    val collectionMenu = remember(nav, vm) {
-        fun withSongs(id: String, use: (List<com.opentune.data.model.Song>) -> Unit) {
-            uiScope.launch {
-                val songs = runCatching { MusicRepository.collection(id).songs }.getOrNull().orEmpty()
-                if (songs.isEmpty()) com.opentune.data.Pills.error("Couldn't load its songs just now") else use(songs)
-            }
-        }
-        com.opentune.ui.components.CollectionMenuActions(
-            play = { id, title, shuffle -> withSongs(id) { vm.playAll(it, 0, shuffle, title) } },
-            // Last first, so the list plays next in its own order.
-            playNext = { id -> withSongs(id) { songs -> songs.asReversed().forEach(vm::playNext); com.opentune.data.Pills.done("${songs.size} songs play next") } },
-            addToQueue = { id -> withSongs(id) { songs -> songs.forEach(vm::addToQueue); com.opentune.data.Pills.done("${songs.size} songs added to the queue") } },
-            downloadAll = { id -> withSongs(id) { songs -> songs.forEach { com.opentune.data.download.Downloads.enqueue(appContext.applicationContext, it) }; com.opentune.data.Pills.done("Downloading ${songs.size} songs") } },
-            open = { id, type -> fromPlayer { nav.openBrowse(id, type) } },
-        )
-    }
     // `song` is read when a menu action runs, so the menu doesn't need rebuilding as songs change.
     val songMenu = remember(nav, vm) { SongMenuActions(
         playNext = vm::playNext,
         addToQueue = vm::addToQueue,
         startRadio = vm::startRadio,
-        openAlbum = { id -> fromPlayer { nav.openBrowse(id, BrowseType.ALBUM) } },
-        openArtist = { id -> fromPlayer { nav.openBrowse(id, BrowseType.ARTIST) } },
+        openAlbum = { id -> fromPlayer { nav.navigate("album/${Uri.encode(id)}") } },
+        openArtist = { id -> fromPlayer { nav.navigate("artist/${Uri.encode(id)}") } },
         dislike = { s ->
             // The player skips it, and its later copies in the queue, itself.
             LibraryStore.dislike(s)
@@ -321,111 +216,66 @@ fun AppRoot(vm: PlayerViewModel) {
         keepInPlaylist = { s, id ->
             LibraryStore.addToPlaylist(id, s)
             com.opentune.playback.SmartShuffle.keep(s.videoId)
-            LibraryStore.playlist(id)?.takeIf { it.spotifyId == null }?.let { p -> com.opentune.data.Pills.done("Added to ${p.name}") }
+            LibraryStore.playlist(id)?.let { p -> com.opentune.data.Pills.done("Added to ${p.name}") }
         },
         progressOf = { s -> if (s.videoId == vm.currentSong.value?.videoId) vm.positionMs() to vm.durationMs.value else null },
-        // One artist lookup at a time: a slower earlier one that failed showed its
-        // "Couldn't find" over the page a later tap had already opened.
         viewArtist = { s ->
-            artistLookup.get()?.cancel()
-            artistLookup.set(uiScope.launch {
-                val id = MusicRepository.artistIdFor(s)
-                if (id == null) {
-                    com.opentune.data.Pills.error("Couldn't find ${s.artist}'s page")
-                } else {
-                    fromPlayer { nav.openBrowse(id, BrowseType.ARTIST) }
-                }
-            })
+            val id = s.artistId ?: com.opentune.data.local.LocalMusic.artistId(com.opentune.data.local.LocalMusic.splitArtists(s.artist).first())
+            fromPlayer { nav.navigate("artist/${Uri.encode(id)}") }
         },
         viewAlbum = { s ->
-            artistLookup.get()?.cancel()
-            artistLookup.set(uiScope.launch {
-                val id = MusicRepository.albumIdFor(s)
-                if (id == null) com.opentune.data.Pills.error("Couldn't find the album for \"${s.title}\"")
-                else fromPlayer { nav.openBrowse(id, BrowseType.ALBUM) }
-            })
+            val id = s.albumId ?: com.opentune.data.local.LocalMusic.library.value?.track(s.videoId)?.song?.albumId
+            if (id == null) com.opentune.data.Pills.error("Couldn't find the album for \"${s.title}\"")
+            else fromPlayer { nav.navigate("album/${Uri.encode(id)}") }
         },
-        viewArtistNamed = { s, name ->
-            artistLookup.get()?.cancel()
-            artistLookup.set(uiScope.launch {
-                val id = MusicRepository.artistIdFor(s, name)
-                if (id == null) {
-                    com.opentune.data.Pills.error("Couldn't find $name's page")
-                } else {
-                    fromPlayer { nav.openBrowse(id, BrowseType.ARTIST) }
-                }
-            })
-        },
+        viewArtistNamed = { _, name -> fromPlayer { nav.navigate("artist/${Uri.encode(com.opentune.data.local.LocalMusic.artistId(name))}") } },
     ) }
-    val libraryNav = remember(nav) { LibraryNav(
-        downloads = { nav.navigate("downloads") },
-        downloaded = { id -> nav.navigate("downloaded/${Uri.encode(id)}") },
-        local = { nav.navigate("local") },
-        replay = { nav.navigate("replay") },
-        settings = { nav.navigate("settings") },
+    val localNav = remember(nav) { com.opentune.ui.local.LocalNav(
+        album = { id -> nav.navigate("album/${Uri.encode(id)}") },
+        artist = { id -> nav.navigate("artist/${Uri.encode(id)}") },
+        folder = { path -> nav.navigate("folder/${Uri.encode(path)}") },
+        folders = { nav.navigate("folders") },
+        search = { nav.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
+        settings = { nav.navigate("settings") { launchSingleTop = true } },
         liked = { nav.navigate("liked") },
         playlist = { id -> nav.navigate("playlist/${Uri.encode(id)}") },
-        browse = { id -> nav.openBrowse(id) },
-        server = { nav.navigate("server") },
-        radio = { nav.navigate("radio") },
-        together = { nav.navigate("together") },
-        importPlaylist = { nav.navigate("import") },
-        wrapped = { nav.navigate("wrapped") },
         history = { nav.navigate("history") },
-        allPlaylists = { nav.navigate("playlists") },
+        replay = { nav.navigate("replay") },
     ) }
-    val serverNav = remember(nav) {
-        ServerNav(
-            album = { id -> nav.navigate("server/album/${Uri.encode(id)}") },
-            artist = { id -> nav.navigate("server/artist/${Uri.encode(id)}") },
-            playlist = { id -> nav.navigate("server/playlist/${Uri.encode(id)}") },
-            artists = { nav.navigate("server/artists") },
-        )
-    }
-    // Links opened from outside: a song plays with its radio, anything else opens its page.
+    // Handed in from outside: the assistant's "play …", an audio file opened with the app, the notification.
     val incoming by Links.incoming.collectAsState()
     LaunchedEffect(incoming) {
         when (val link = incoming) {
-            is LinkTarget.Song -> {
-                vm.player.connected.first { it }
-                val queue = runCatching { MusicRepository.watchQueue(link.videoId) }.getOrDefault(emptyList())
-                val at = queue.indexOfFirst { it.videoId == link.videoId }
-                // A radio, though it arrives as a list: smart shuffle doesn't apply.
-                if (at >= 0) vm.playAll(queue, at, false, "Shared link", fromList = false)
-                else vm.play(com.opentune.data.model.Song(link.videoId, "Shared song", "", null), "Shared link")
-                playerOpen = true
-            }
-            is LinkTarget.Browse -> nav.openBrowse(link.browseId)
-            // Read for its title and artist, then found on YouTube Music; autoplay carries on from it.
-            is LinkTarget.Elsewhere -> {
-                vm.player.connected.first { it }
-                val named = com.opentune.data.links.MusicLinks.resolve(link.url)
-                val match = named?.let { n ->
-                    runCatching { MusicRepository.search("${n.title} ${n.artist}".trim(), SearchFilter.SONGS) }.getOrDefault(emptyList())
-                        .firstNotNullOfOrNull { (it as? SearchResult.TopTrack)?.song ?: (it as? SearchResult.Track)?.song }
-                }
-                when {
-                    match != null -> { vm.play(match, "Shared link"); playerOpen = true }
-                    named != null -> com.opentune.data.Pills.error("Couldn't find \"${named.title}\" on YouTube Music")
-                    else -> com.opentune.data.Pills.error("Couldn't read that link")
-                }
-            }
-            is LinkTarget.SpotifyImport -> nav.navigate("import?link=${Uri.encode(link.text)}")
-            is LinkTarget.Together -> { playerOpen = false; nav.navigate("together?code=${link.code}") }
-            is LinkTarget.Recognize -> { playerOpen = false; nav.navigate("recognize?listen=true") { launchSingleTop = true } }
-            is LinkTarget.Player -> playerOpen = true
             is LinkTarget.PlaySearch -> {
                 vm.player.connected.first { it }
-                if (link.query.isBlank()) {
-                    val recent = com.opentune.data.history.History.recents(com.opentune.data.history.History.records.value, 50)
-                    if (recent.isNotEmpty()) vm.playAll(recent, 0, true, "Recently played")
-                } else {
-                    // YouTube's best match leads the mixed search; autoplay follows it with radio.
-                    val match = runCatching { MusicRepository.search(link.query, SearchFilter.ALL) }.getOrDefault(emptyList())
-                        .firstNotNullOfOrNull { (it as? SearchResult.TopTrack)?.song ?: (it as? SearchResult.Track)?.song }
-                    if (match != null) vm.play(match, link.query) else com.opentune.data.Pills.error("Nothing found for \"${link.query}\"")
+                val lib = com.opentune.data.local.LocalMusic.current(appContext)
+                val q = link.query.trim().lowercase()
+                val songs = when {
+                    q.isEmpty() -> lib.songs.shuffled()
+                    else -> lib.artists.firstOrNull { it.name.lowercase() == q }?.songs?.shuffled()
+                        ?: lib.albums.firstOrNull { it.title.lowercase() == q }?.songs
+                        ?: lib.songs.filter { it.title.lowercase().contains(q) || "${it.title} ${it.artist}".lowercase().contains(q) }
                 }
+                if (songs.isNotEmpty()) { vm.playAll(songs, 0, false, link.query.ifBlank { "All songs" }); playerOpen = true }
+                else com.opentune.data.Pills.error("Nothing on your phone matches \"${link.query}\"")
             }
+            is LinkTarget.PlayFile -> {
+                vm.player.connected.first { it }
+                val lib = com.opentune.data.local.LocalMusic.current(appContext)
+                // A file the library knows plays as itself, with its album around it.
+                val id = runCatching { android.content.ContentUris.parseId(link.uri) }.getOrNull()
+                    ?.takeIf { link.uri.authority == android.provider.MediaStore.AUTHORITY }
+                val known = id?.let { lib.track("${com.opentune.data.local.LocalMusic.PREFIX}$it") }
+                if (known != null) {
+                    val album = known.song.albumId?.let(lib::album)?.songs.orEmpty()
+                    val at = album.indexOfFirst { it.videoId == known.song.videoId }
+                    if (at >= 0) vm.playAll(album, at, false, known.song.albumName ?: "Album") else vm.play(known.song, "Opened file")
+                } else {
+                    com.opentune.data.Pills.error("Only songs in your phone's music library can be played")
+                }
+                playerOpen = true
+            }
+            is LinkTarget.Player -> playerOpen = true
             null -> return@LaunchedEffect
         }
         Links.consumed()
@@ -517,14 +367,7 @@ fun AppRoot(vm: PlayerViewModel) {
             }
         }
     }
-    // Tapped again on Search, the cursor goes straight into the search bar.
-    val openSearch = {
-        if (route != SEARCH_ROUTE) nav.navigate(SEARCH_ROUTE) { launchSingleTop = true }
-        else com.opentune.ui.search.SearchFocus.request()
-    }
-    val openMood: (com.opentune.data.model.MoodGenre) -> Unit = { mood ->
-        nav.navigate("mood/${Uri.encode(mood.browseId)}?params=${Uri.encode(mood.params.orEmpty())}&title=${Uri.encode(mood.title)}")
-    }
+    val openSearch = { if (route != SEARCH_ROUTE) nav.navigate(SEARCH_ROUTE) { launchSingleTop = true } }
 
     // The opening animation, once per launch: the app comes forward out of
     // the mark as the screen dives into it.
@@ -567,7 +410,6 @@ fun AppRoot(vm: PlayerViewModel) {
     CompositionLocalProvider(
         LocalHazeState provides haze,
         LocalSongMenu provides songMenu,
-        com.opentune.ui.components.LocalCollectionMenu provides collectionMenu,
         LocalChromeScroll provides chromeScroll,
         // iOS-style rubber band at the ends of every list.
         LocalOverscrollFactory provides RubberBandOverscrollFactory,
@@ -602,7 +444,6 @@ fun AppRoot(vm: PlayerViewModel) {
                 }
             },
             reduceMotion = chromeUi.reduceAnimation,
-            onOnline = { com.opentune.ui.spotify.SpotifyConnection.retryFailedSync() },
         ) {
             Box(
                 Modifier.fillMaxSize()
@@ -626,55 +467,20 @@ fun AppRoot(vm: PlayerViewModel) {
                     popEnterTransition = { PageMotion.popEnter(chromeUi.pageTransition, chromeUi.reduceAnimation) },
                     popExitTransition = { PageMotion.popExit(chromeUi.pageTransition, chromeUi.reduceAnimation) },
                 ) {
-                    page(Tab.HOME.route) {
-                        HomeScreen(
-                            contentPadding = content,
-                            actions = actions,
-                            onItemClick = openItem,
-                            onOpenSettings = { nav.navigate("settings") },
-                            onRecognize = { nav.navigate("recognize") },
-                            covered = playerCovers,
-                            onOpenSpeedDial = { nav.navigate("speed-dial") },
-                        )
+                    page(Tab.HOME.route) { com.opentune.ui.local.LocalSongsScreen(content, actions, localNav) }
+                    page(Tab.ALBUMS.route) { com.opentune.ui.local.LocalAlbumsScreen(content, localNav) }
+                    page(Tab.ARTISTS.route) { com.opentune.ui.local.LocalArtistsScreen(content, localNav) }
+                    page(Tab.LIBRARY.route) { com.opentune.ui.local.LibraryHub(content, actions, localNav) }
+                    page(SEARCH_ROUTE) { com.opentune.ui.local.LocalSearchScreen(content, actions, localNav, onBack = { nav.popBackStack() }) }
+                    page("album/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
+                        com.opentune.ui.local.LocalAlbumScreen(e.arguments?.getString("id").orEmpty(), content, actions, localNav, onBack = { nav.popBackStack() })
                     }
-                    page("speed-dial") {
-                        com.opentune.ui.home.SpeedDialScreen(content, onItemClick = openItem, onBack = { nav.popBackStack() })
+                    page("artist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
+                        com.opentune.ui.local.LocalArtistScreen(e.arguments?.getString("id").orEmpty(), content, actions, localNav, onBack = { nav.popBackStack() })
                     }
-                    page(Tab.EXPLORE.route) {
-                        ExploreScreen(content, onMoodClick = openMood, onItemClick = openItem, onOpenSettings = { nav.navigate("settings") })
-                    }
-                    page(Tab.PODCASTS.route) {
-                        com.opentune.ui.podcasts.PodcastsScreen(content, actions, onOpenShow = { id -> nav.navigate("podcast/${Uri.encode(id)}") }, onOpenSettings = { nav.navigate("settings") })
-                    }
-                    page("podcast/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        com.opentune.ui.podcasts.PodcastShowScreen(
-                            e.arguments?.getString("id").orEmpty(),
-                            content,
-                            actions,
-                            onBack = { nav.popBackStack() },
-                            onOpenShow = { id -> nav.navigate("podcast/${Uri.encode(id)}") },
-                        )
-                    }
-                    page(Tab.LIBRARY.route) {
-                        LibraryScreen(contentPadding = content, actions = actions, nav = libraryNav)
-                    }
-                    page(SEARCH_ROUTE) {
-                        SearchScreen(
-                            contentPadding = content,
-                            currentVideoId = song?.videoId,
-                            isPlaying = isPlaying,
-                            onPlay = { vm.play(it, "Search") },
-                            onPlayNext = vm::playNext,
-                            onAddToQueue = vm::addToQueue,
-                            onBrowse = { item: BrowseItem -> nav.openBrowse(item.browseId, item.type) },
-                            onRecognize = { nav.navigate("recognize") },
-                            onOpenList = { list ->
-                                list.playlistId?.let { nav.navigate("playlist/${Uri.encode(it)}") } ?: list.browseId?.let { nav.openBrowse(it) }
-                            },
-                            explore = if (separateExplore) null else ({
-                                ExploreScreen(content, onMoodClick = openMood, onItemClick = openItem, showHeader = false)
-                            }),
-                        )
+                    page("folders") { com.opentune.ui.local.LocalFoldersScreen(content, localNav, onBack = { nav.popBackStack() }) }
+                    page("folder/{path}", listOf(navArgument("path") { type = NavType.StringType })) { e ->
+                        com.opentune.ui.local.LocalFolderScreen(e.arguments?.getString("path").orEmpty(), content, actions, onBack = { nav.popBackStack() })
                     }
                     page("settings") {
                         SettingsScreen(
@@ -683,128 +489,16 @@ fun AppRoot(vm: PlayerViewModel) {
                             onOpenEqualizer = { nav.navigate("equalizer") },
                             onOpenReplay = { nav.navigate("replay") },
                             onOpenWrapped = { nav.navigate("wrapped") },
-                            onSignIn = { nav.navigate("login") },
-                            onOpenDownloads = { nav.navigate("downloads") },
-                            onOpenSpotify = { nav.navigate("import") },
-                            onOpenDevices = { nav.navigate("devices") },
                         )
                     }
-                    page("devices") {
-                        com.opentune.ui.settings.LinkDeviceScreen(
-                            content,
-                            onBack = { nav.popBackStack() },
-                            onSignIn = { nav.navigate("login") },
-                            onTogether = { nav.navigate("together") },
-                        )
-                    }
-                    page("login") { entry ->
-                        // Only while it's still the page in front: a late second call mustn't close the one under it.
-                        LoginScreen(onDone = { if (nav.currentBackStackEntry == entry) nav.popBackStack() })
-                    }
-                    page("downloads") { DownloadsScreen(content, actions, onBack = { nav.popBackStack() }, onOpenList = { id -> nav.navigate("downloaded/${Uri.encode(id)}") }) }
-                    page("downloaded/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        com.opentune.ui.library.DownloadedListScreen(e.arguments?.getString("id").orEmpty(), content, actions, onBack = { nav.popBackStack() })
-                    }
-                    page("playlists") { com.opentune.ui.library.AllPlaylistsScreen(content, libraryNav, onBack = { nav.popBackStack() }) }
-                    page("liked") {
-                        LikedScreen(content, actions, onBack = { nav.popBackStack() }, onOpenYouTubeLikes = { nav.openBrowse("VLLM", BrowseType.PLAYLIST) })
-                    }
+                    page("liked") { LikedScreen(content, actions, onBack = { nav.popBackStack() }) }
                     page("playlist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         LocalPlaylistScreen(e.arguments?.getString("id").orEmpty(), content, actions, onBack = { nav.popBackStack() })
                     }
                     page("equalizer") { EqualizerScreen(content, onBack = { nav.popBackStack() }) }
-                    page("local") { LocalMusicScreen(content, actions, onBack = { nav.popBackStack() }) }
                     page("history") { com.opentune.ui.library.ListeningHistoryScreen(content, actions, onBack = { nav.popBackStack() }) }
                     page("replay") { ReplayScreen(content, actions, onBack = { nav.popBackStack() }, onOpenWrapped = { nav.navigate("wrapped") }) }
                     page("wrapped") { WrappedScreen(actions, onBack = { nav.popBackStack() }, player = vm.player) }
-                    page("recognize?listen={listen}", listOf(navArgument("listen") { type = NavType.BoolType; defaultValue = false })) { e ->
-                        com.opentune.ui.recognize.RecognizeScreen(
-                            content, onPlay = { vm.play(it, "Found by listening") }, onBack = { nav.popBackStack() },
-                            listenAtOnce = e.arguments?.getBoolean("listen") == true,
-                        )
-                    }
-                    page(
-                        "import?link={link}",
-                        listOf(navArgument("link") { type = NavType.StringType; nullable = true; defaultValue = null }),
-                    ) { e ->
-                        com.opentune.ui.spotify.ImportScreen(
-                            content,
-                            actions,
-                            initialLink = e.arguments?.getString("link"),
-                            onBack = { nav.popBackStack() },
-                            onOpenPlaylist = { id -> nav.navigate("playlist/${Uri.encode(id)}") },
-                            onOpenExportify = { appContext.startActivity(android.content.Intent(appContext, com.opentune.ui.spotify.ExportifyActivity::class.java)) },
-                        )
-                    }
-                    page("radio") { com.opentune.ui.radio.RadioScreen(content, actions, onBack = { nav.popBackStack() }) }
-                    page(
-                        "together?code={code}",
-                        arguments = listOf(androidx.navigation.navArgument("code") { nullable = true; defaultValue = null }),
-                    ) { entry ->
-                        com.opentune.ui.together.TogetherScreen(content, entry.arguments?.getString("code"), onBack = { nav.popBackStack() })
-                    }
-                    page("server") { ServerScreen(content, actions, serverNav, onBack = { nav.popBackStack() }) }
-                    page("server/artists") { ServerArtistsScreen(content, serverNav, onBack = { nav.popBackStack() }) }
-                    page("server/album/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        ServerAlbumScreen(e.arguments?.getString("id").orEmpty(), content, actions, onBack = { nav.popBackStack() }, onArtist = serverNav.artist)
-                    }
-                    page("server/artist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        ServerArtistScreen(e.arguments?.getString("id").orEmpty(), content, serverNav, onBack = { nav.popBackStack() })
-                    }
-                    page("server/playlist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        ServerPlaylistScreen(e.arguments?.getString("id").orEmpty(), content, actions, onBack = { nav.popBackStack() })
-                    }
-                    page("collection/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        CollectionScreen(e.arguments?.getString("id").orEmpty(), content, actions, onBack = { nav.popBackStack() })
-                    }
-                    page("artist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
-                        ArtistScreen(
-                            e.arguments?.getString("id").orEmpty(), content, actions,
-                            onBack = { nav.popBackStack() },
-                            onItemClick = openItem,
-                            onShowAll = { shelf ->
-                                shelf.moreBrowseId?.let { id ->
-                                    nav.navigate("artist-items/${Uri.encode(id)}?params=${Uri.encode(shelf.moreParams.orEmpty())}&title=${Uri.encode(shelf.title)}")
-                                }
-                            },
-                        )
-                    }
-                    page(
-                        "artist-items/{id}?params={params}&title={title}",
-                        listOf(
-                            navArgument("id") { type = NavType.StringType },
-                            navArgument("params") { type = NavType.StringType; defaultValue = "" },
-                            navArgument("title") { type = NavType.StringType; defaultValue = "" },
-                        ),
-                    ) { e ->
-                        val args = e.arguments
-                        com.opentune.ui.browse.ArtistItemsScreen(
-                            title = args?.getString("title").orEmpty(),
-                            browseId = args?.getString("id").orEmpty(),
-                            params = args?.getString("params")?.takeIf { it.isNotEmpty() },
-                            contentPadding = content,
-                            onBack = { nav.popBackStack() },
-                            onItemClick = openItem,
-                        )
-                    }
-                    page(
-                        "mood/{id}?params={params}&title={title}",
-                        listOf(
-                            navArgument("id") { type = NavType.StringType },
-                            navArgument("params") { type = NavType.StringType; defaultValue = "" },
-                            navArgument("title") { type = NavType.StringType; defaultValue = "" },
-                        ),
-                    ) { e ->
-                        val args = e.arguments
-                        MoodScreen(
-                            title = args?.getString("title").orEmpty(),
-                            browseId = args?.getString("id").orEmpty(),
-                            params = args?.getString("params")?.takeIf { it.isNotEmpty() },
-                            contentPadding = content,
-                            onBack = { nav.popBackStack() },
-                            onItemClick = openItem,
-                        )
-                    }
                 }
                 }
             }
@@ -822,7 +516,6 @@ fun AppRoot(vm: PlayerViewModel) {
             }
             if (layout.nav == NavChrome.DOCK) {
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
-                starCard()
                 BottomChrome(
                     inline = chromeScroll.inline,
                     tabs = chromeTabs,
@@ -863,8 +556,7 @@ fun AppRoot(vm: PlayerViewModel) {
                     Modifier.align(Alignment.BottomCenter).then(pageArea).fillMaxWidth()
                         .navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                 ) {
-                    starCard()
-                    if (layout.nowPlaying == NowPlaying.BAR) {
+                        if (layout.nowPlaying == NowPlaying.BAR) {
                         MiniPlayerBar(vm, onExpand = { openPlayer(false) }, modifier = Modifier.fillMaxWidth().height(CHROME_MINI_HEIGHT))
                     }
                 }
@@ -891,7 +583,6 @@ fun AppRoot(vm: PlayerViewModel) {
                     PlayerScreen(
                         vm,
                         onCollapse = { paneCollapsed = true },
-                        onTogether = { nav.navigate("together") },
                         onEqualizer = { nav.navigate("equalizer") },
                         docked = true,
                     )
@@ -914,7 +605,6 @@ fun AppRoot(vm: PlayerViewModel) {
                     vm,
                     onCollapse = { playerOpen = false },
                     onCovering = { still = it },
-                    onTogether = { fromPlayer { nav.navigate("together") } },
                     onEqualizer = { fromPlayer { nav.navigate("equalizer") } },
                 )
             }
@@ -981,20 +671,6 @@ private fun PlayerStrip(vm: PlayerViewModel, onExpand: () -> Unit) {
 /** The ids of the entries on the back stack, top last. The whole stack is only public as this restricted, long-stable flow. */
 @android.annotation.SuppressLint("RestrictedApi")
 private fun NavHostController.stackIds(): List<String> = currentBackStack.value.map { it.id }
-
-private fun NavHostController.openBrowse(browseId: String, type: BrowseType = MusicRepository.typeOf(browseId)) {
-    val route = when {
-        // A podcast show has its own page.
-        browseId.startsWith("MPSP") -> "podcast/{id}"
-        type == BrowseType.ARTIST -> "artist/{id}"
-        else -> "collection/{id}"
-    }
-    // Already on that page (a second tap while the first was still finding it):
-    // stay, so back doesn't have to go through the same page twice.
-    val here = currentBackStackEntry
-    if (here?.destination?.route == route && here.arguments?.getString("id") == browseId) return
-    navigate(route.replace("{id}", Uri.encode(browseId)))
-}
 
 /** A destination of the NavHost; on a TV it keeps the remote's place when it's come back to (see TvPage). */
 private fun androidx.navigation.NavGraphBuilder.page(

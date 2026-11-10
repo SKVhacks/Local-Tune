@@ -286,10 +286,6 @@ private fun PlainLyrics(text: String, source: String, note: String? = "These lyr
             if (!romanize) { value = emptyList(); return@produceState }
             val texts = text.lines()
             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Romanizer.lines(texts) }
-            // Japanese with kanji: the offline reading first, then the full one when it arrives.
-            if (com.opentune.data.lyrics.JapaneseReadings.wanted(texts)) {
-                com.opentune.data.lyrics.JapaneseReadings.lines(texts)?.let { read -> value = read.mapIndexed { i, r -> r ?: value.getOrNull(i) } }
-            }
         }
         val dimmed = MaterialTheme.colorScheme.onSurfaceVariant
         val shown = remember(text, romanized, dimmed) {
@@ -342,10 +338,6 @@ private fun SyncedLyrics(
         if (!romanize) { value = emptyList(); return@produceState }
         val texts = lines.map { it.text }
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Romanizer.lines(texts) }
-        // Japanese with kanji: the offline reading first, then the full one when it arrives.
-        if (com.opentune.data.lyrics.JapaneseReadings.wanted(texts)) {
-            com.opentune.data.lyrics.JapaneseReadings.lines(texts)?.let { read -> value = read.mapIndexed { i, r -> r ?: value.getOrNull(i) } }
-        }
     }
     // Two singers trade lines: the second voice's sit on the other side.
     val duet = remember(lines) { lines.any { it.voice == VOICE_SECOND } }

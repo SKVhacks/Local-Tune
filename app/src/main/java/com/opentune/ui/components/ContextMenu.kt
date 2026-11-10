@@ -87,9 +87,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.opentune.data.download.DownloadState
-import com.opentune.data.download.Downloads
-import com.opentune.data.isYouTubeId
 import com.opentune.data.library.LibraryStore
 import com.opentune.data.model.BrowseType
 import com.opentune.data.model.Song
@@ -329,10 +326,7 @@ fun SongContextMenu(
     val actions = LocalSongMenu.current
     val context = LocalContext.current
     val liked by LibraryStore.liked.collectAsState()
-    val downloads by Downloads.entries.collectAsState()
     val isLiked = liked.any { it.videoId == song.videoId }
-    val download = downloads[song.videoId]
-    val local = !isYouTubeId(song.videoId)
     // What follows the menu once it's gone: a playlist picker, or the full menu.
     var next by remember { mutableStateOf<String?>(null) }
     when (next) {
@@ -340,81 +334,23 @@ fun SongContextMenu(
         "more" -> { SongMenuSheet(song, onDismiss = { next = null; onDismiss() }); return }
         "info" -> { com.opentune.ui.player.TrackDetailsDialog(song, song.durationMillis(), onDismiss = { next = null; onDismiss() }); return }
     }
-    // Kept audio, separate from a download: the song cache that makes replays instant.
-    val cached = remember(song.videoId) { !local && com.opentune.playback.AudioCache.holds(context, song.videoId) }
     val entries = buildList {
-        add(MenuEntry(if (isLiked) "Remove from Liked Music" else "Like", if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, 0) { LibraryStore.setLiked(song, !isLiked) })
+        add(MenuEntry(if (isLiked) "Remove from Liked" else "Like", if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, 0) { LibraryStore.setLiked(song, !isLiked) })
         if (actions != null) add(MenuEntry("Dislike", Icons.Rounded.ThumbDownOffAlt, 0) { actions.dislike(song) })
         add(MenuEntry("Add to playlist", Icons.AutoMirrored.Rounded.PlaylistAdd, 0) { next = "playlist" })
         onRemoveFromPlaylist?.let { add(MenuEntry("Remove from this playlist", Icons.Rounded.RemoveCircleOutline, 0) { it() }) }
-        if (!local) add(
-            when (download?.state) {
-                DownloadState.DONE -> MenuEntry("Remove download", Icons.Rounded.DeleteOutline) { Downloads.remove(context, song.videoId) }
-                DownloadState.QUEUED, DownloadState.DOWNLOADING -> MenuEntry("Cancel download", Icons.Rounded.DeleteOutline) { Downloads.remove(context, song.videoId) }
-                DownloadState.FAILED -> MenuEntry("Retry download", Icons.Rounded.Download) { Downloads.retry(context, song.videoId) }
-                null -> MenuEntry("Download", Icons.Rounded.Download) { Downloads.enqueue(context, song) }
-            },
-        )
-        if (cached && download?.state != DownloadState.DONE) add(MenuEntry("Remove from cache", Icons.Rounded.DeleteSweep) {
-            com.opentune.playback.AudioCache.remove(context, song.videoId)
-        })
         if (actions != null) {
-            if (!local) add(MenuEntry("Start radio", Icons.Rounded.Radio) { actions.startRadio(song) })
             add(MenuEntry("Play next", Icons.AutoMirrored.Rounded.PlaylistPlay) { actions.playNext(song) })
             add(MenuEntry("Add to queue", Icons.AutoMirrored.Rounded.QueueMusic) { actions.addToQueue(song) })
             song.albumId?.let { id -> add(MenuEntry("Open album", Icons.Rounded.Album) { actions.openAlbum(id) }) }
             when {
-                actions.viewArtist != null && !local -> add(MenuEntry("Open artist", Icons.Rounded.Person) { actions.viewArtist.invoke(song) })
+                actions.viewArtist != null -> add(MenuEntry("Open artist", Icons.Rounded.Person) { actions.viewArtist.invoke(song) })
                 song.artistId != null -> add(MenuEntry("Open artist", Icons.Rounded.Person) { actions.openArtist(song.artistId!!) })
             }
         }
         add(MenuEntry("Song info", Icons.Rounded.Info) { next = "info" })
-        if (!local) add(MenuEntry("Share", Icons.Rounded.Share) {
-            val (at, length) = actions?.progressOf?.invoke(song) ?: (0L to 0L)
-            com.opentune.ui.share.ShareCard.share(context, song, at, length)
-        })
+        add(MenuEntry("Share", Icons.Rounded.Share) { shareFile(context, song) })
         add(MenuEntry("More options", Icons.Rounded.MoreHoriz) { next = "more" })
     }
     ContextMenu(anchor, onDismiss = { if (next == null) onDismiss() }, entries = entries, preview = preview)
-}
-
-/** What a long-press on an album or playlist can do; built by the app shell. */
-class CollectionMenuActions(
-    val play: (browseId: String, title: String, shuffle: Boolean) -> Unit,
-    val playNext: (browseId: String) -> Unit,
-    val addToQueue: (browseId: String) -> Unit,
-    val downloadAll: (browseId: String) -> Unit,
-    val open: (browseId: String, type: BrowseType) -> Unit,
-)
-
-val LocalCollectionMenu = staticCompositionLocalOf<CollectionMenuActions?> { null }
-
-/** An album or playlist to open a long-press menu for. */
-class MenuList(val browseId: String, val title: String, val subtitle: String, val thumbnailUrl: String?, val type: BrowseType)
-
-/** An album's or playlist's long-press menu: play, shuffle, queue, download, open, share, save. */
-@Composable
-fun CollectionContextMenu(list: MenuList, anchor: Rect, onDismiss: () -> Unit, preview: @Composable () -> Unit) {
-    val actions = LocalCollectionMenu.current
-    val context = LocalContext.current
-    val saved by LibraryStore.savedLists.collectAsState()
-    val isSaved = saved.any { it.browseId == list.browseId }
-    val kind = if (list.type == BrowseType.ALBUM) "album" else "playlist"
-    val entries = buildList {
-        if (actions != null) {
-            add(MenuEntry("Play", Icons.Rounded.PlayArrow) { actions.play(list.browseId, list.title, false) })
-            add(MenuEntry("Shuffle", Icons.Rounded.Shuffle) { actions.play(list.browseId, list.title, true) })
-            add(MenuEntry("Play next", Icons.AutoMirrored.Rounded.PlaylistPlay) { actions.playNext(list.browseId) })
-            add(MenuEntry("Add to queue", Icons.AutoMirrored.Rounded.QueueMusic) { actions.addToQueue(list.browseId) })
-            add(MenuEntry("Download all", Icons.Rounded.Download) { actions.downloadAll(list.browseId) })
-            add(MenuEntry("Open $kind", Icons.AutoMirrored.Rounded.KeyboardArrowRight) { actions.open(list.browseId, list.type) })
-        }
-        add(MenuEntry("Share", Icons.Rounded.Share) { com.opentune.ui.share.ListShare.shareList(context, list.title, list.browseId, listOf(list.thumbnailUrl), list.subtitle) })
-        add(
-            MenuEntry(if (isSaved) "Unpin" else "Pin", if (isSaved) Icons.Rounded.BookmarkRemove else Icons.Rounded.PushPin) {
-                LibraryStore.setSaved(com.opentune.data.library.SavedList(list.browseId, list.title, list.subtitle, list.thumbnailUrl), !isSaved)
-            },
-        )
-    }
-    ContextMenu(anchor, onDismiss, entries, preview)
 }
