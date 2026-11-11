@@ -28,7 +28,7 @@ internal object Ttml {
             else unescape(inner.replace(Regex("<[^>]+>"), "")).replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@mapNotNull null
             if (spans.size >= 2) LyricLine(start, end, text, spans, wordSynced = true, voice = voice, background = background, rtl = rtl)
-            else LyricLine(start, end, text, LrcParser.spreadWords(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl)
+            else LyricLine(start, end, text, LrcParser.spreadAcross(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl)
         }.toList()
     }
 

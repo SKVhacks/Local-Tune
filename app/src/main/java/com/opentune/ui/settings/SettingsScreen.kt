@@ -964,6 +964,13 @@ private fun settingsSections(
                 Entry("Glow on the sung line", "lyrics glow shine highlight") {
                     ToggleRow("Glow on the sung line", ui.lyricsGlow, { v -> AppSettings.updateUi { it.copy(lyricsGlow = v) } }, summary = "A soft halo around the line being sung, with any animation", icon = Icons.Rounded.Flare)
                 },
+                Entry("Sweep line-timed lyrics", "letter by letter karaoke sweep line synced fill progress apple") {
+                    ToggleRow(
+                        "Sweep line-timed lyrics", ui.sweepLineLyrics, { v -> AppSettings.updateUi { it.copy(sweepLineLyrics = v) } },
+                        summary = "Lines with no word timing fill letter by letter over the line's time, as Apple Music shows them. Off lights the whole line at once.",
+                        icon = Icons.Rounded.Flare,
+                    )
+                },
                 Entry("Blur unfocused lyrics", "spotlight") {
                     ToggleRow("Blur unfocused lyrics", ui.blurLyrics, { v -> AppSettings.updateUi { it.copy(blurLyrics = v) } }, summary = "Keeps the spotlight on the current line", icon = Icons.Rounded.BlurOn)
                 },

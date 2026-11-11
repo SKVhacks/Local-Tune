@@ -796,9 +796,10 @@ internal fun LyricLineView(
     // A word's trailing space is left out, and a word that still runs across a
     // wrap gets one box per row: a single box for the word that ends the first
     // row would span both rows edge to edge and dim the whole line until sung.
-    // Words light one by one only where the source timed them. A line timed as a
-    // whole lights all at once, on time, rather than sweeping on guessed word times.
-    val sweep = isActive && line.wordSynced && line.words.isNotEmpty()
+    // Words light one by one where the source timed them. A line timed as a whole
+    // sweeps across letter by letter over its time (Apple Music's way), unless
+    // that's turned off, when it lights all at once.
+    val sweep = isActive && line.words.isNotEmpty() && (line.wordSynced || ui.sweepLineLyrics)
     val cardPad by animateDpAsState(if (picking) 14.dp else 0.dp, tween(220), label = "cardPad")
     Column(
         Modifier
@@ -974,7 +975,7 @@ internal fun SungLine(line: LyricLine, position: () -> Long, style: androidx.com
                 val boxes = wordBoxesOf(layout.value, line, text)
                 onDrawWithContent {
                     drawContent()
-                    if (line.wordSynced) sweepDim(line, boxes, position(), 0.55f, rtl)
+                    if (line.wordSynced || com.opentune.data.settings.AppSettings.ui.value.sweepLineLyrics) sweepDim(line, boxes, position(), 0.55f, rtl)
                 }
             },
     )

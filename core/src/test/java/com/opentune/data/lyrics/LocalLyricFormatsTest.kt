@@ -143,6 +143,27 @@ class LocalLyricFormatsTest {
     }
 
     @Test
+    fun appleLineTimedTtmlSweepsAcrossTheWholeLine() {
+        // As Apple ships many songs: itunes:timing="Line", one time per line, overlapping a little.
+        val xml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Line"><body dur="3:10.582"><div begin="13.745" end="23.520" itunes:songPart="Chorus"><p begin="13.745" end="16.871" itunes:key="L3">Four-by-four, I tint my windows up, yeah (Windows up)</p><p begin="17.093" end="20.818" itunes:key="L4">Damn, lil' bro, he did it, one-and-done, yeah</p><p begin="20.493" end="23.520" itunes:key="L5">Out my closet, that shit none-of-none, yeah</p></div></body></tt>"""
+        val lines = Ttml.parse(xml)
+        val first = lines.first()
+        assertFalse(first.wordSynced)
+        // The sweep starts on the line's time and ends exactly at its end, with no gaps.
+        assertEquals(13_745L, first.words.first().startMs)
+        assertEquals(16_871L, first.words.last().endMs)
+        first.words.zipWithNext().forEach { (a, b) -> assertEquals(a.endMs, b.startMs) }
+        // Longer words take longer: "windows" more than "I".
+        val i = first.words.first { it.text.trim() == "I" }
+        val windows = first.words.first { it.text.trim() == "windows" }
+        assertTrue(windows.endMs - windows.startMs > (i.endMs - i.startMs) * 5)
+        // Through tidying, a line that runs into the next one is ended where the next starts.
+        val tidy = LyricsQuality.tidy(Lyrics.Synced(lines, "x"), 190_582) as Lyrics.Synced
+        assertEquals(20_493L, tidy.lines[1].endMs)
+        assertTrue(tidy.lines[1].words.last().endMs <= 20_493L)
+    }
+
+    @Test
     fun ttmlEntitiesAreRead() {
         val lines = Ttml.parse("""<tt><body><p begin="1s" end="2s"><span begin="1s" end="1.5s">Don&apos;t</span> <span begin="1.5s" end="2s">stop</span></p></body></tt>""")
         assertEquals("Don't stop", lines.single().text)

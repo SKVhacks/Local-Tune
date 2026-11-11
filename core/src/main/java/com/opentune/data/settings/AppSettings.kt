@@ -441,6 +441,12 @@ data class InterfaceSettings(
     val lyricsAlign: LyricsAlign = LyricsAlign.LEFT,
     /** A soft glow around the line being sung, whatever the lyrics animation. */
     val lyricsGlow: Boolean = false,
+    /**
+     * Lines timed only as a whole (no word times in the file) sweep across
+     * letter by letter over the line's time, as Apple Music shows them,
+     * rather than lighting all at once.
+     */
+    val sweepLineLyrics: Boolean = true,
     /** High performance mode: ask for a fast refresh rate while the app is open. */
     val highRefreshRate: Boolean = true,
     /** The rate high performance mode asks for, in Hz; 0 for the screen's fastest. */

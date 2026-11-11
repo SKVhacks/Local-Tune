@@ -176,6 +176,25 @@ object LrcParser {
      * before an instrumental break used to crawl on through the break, and
      * the break only showed as one once the crawl was done.
      */
+    /**
+     * [text]'s words laid evenly by letter over the whole of [start]..[end]:
+     * for a line whose end is the end of its singing (Apple's line-timed TTML),
+     * so a sweep through them crosses the line letter by letter in exactly
+     * its time, as Apple Music shows these lines.
+     */
+    fun spreadAcross(text: String, start: Long, end: Long): List<LyricWord> {
+        val tokens = Regex("""\S+\s*""").findAll(text).map { it.value }.toList()
+        if (tokens.isEmpty() || end <= start) return spreadWords(text, start, end)
+        val weights = tokens.map { t -> t.count { it.isLetterOrDigit() }.coerceAtLeast(1) }
+        val total = weights.sum().toDouble()
+        var acc = 0
+        return tokens.mapIndexed { i, token ->
+            val from = start + ((end - start) * (acc / total)).toLong()
+            acc += weights[i]
+            LyricWord(token, from, start + ((end - start) * (acc / total)).toLong())
+        }
+    }
+
     fun spreadWords(text: String, start: Long, end: Long): List<LyricWord> {
         val tokens = Regex("""\S+\s*""").findAll(text).map { it.value }.toList()
         if (tokens.isEmpty()) return emptyList()
