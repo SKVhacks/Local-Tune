@@ -347,6 +347,12 @@ data class InterfaceSettings(
     /** On a TV, the heavy effects have been turned down once; they can be turned back on by hand. */
     val tvTuned: Boolean = false,
     val reduceAnimation: Boolean = false,
+    /**
+     * Keeps the phone cool while the player is open: the cover and the
+     * background hold still, and lyric lines are dimmed rather than blurred,
+     * so the screen is only redrawn where something really changes.
+     */
+    val coolPlayer: Boolean = true,
     /** The mark's dive into the app when it starts. */
     val openingAnimation: Boolean = true,
     /** Solid fills instead of frosted glass. */

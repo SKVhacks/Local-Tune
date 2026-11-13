@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.Icons
@@ -833,8 +834,15 @@ private fun settingsSections(
                         }
                     })
                 },
+                Entry("Keep the phone cool", "battery heat warm hot power saver cool performance smooth") {
+                    ToggleRow(
+                        "Keep the phone cool", ui.coolPlayer, { v -> AppSettings.updateUi { it.copy(coolPlayer = v) } },
+                        summary = "The cover and background hold still and lyric lines dim instead of blurring, so the phone stays cooler and the battery lasts longer",
+                        icon = Icons.Rounded.BatterySaver,
+                    )
+                },
                 Entry("Moving cover art", "motion artwork canvas animated cover drift zoom") {
-                    ToggleRow("Moving cover art", ui.movingCover, { v -> AppSettings.updateUi { it.copy(movingCover = v) } }, summary = "The cover drifts and zooms slowly in the player while a song plays", icon = Icons.Rounded.Animation)
+                    ToggleRow("Moving cover art", ui.movingCover, { v -> AppSettings.updateUi { it.copy(movingCover = v) } }, summary = if (ui.coolPlayer) "Off while Keep the phone cool is on" else "The cover drifts and zooms slowly in the player while a song plays", icon = Icons.Rounded.Animation)
                 },
                 Entry("Full-screen cover art", "artwork edge") {
                     ToggleRow("Full-screen cover art", ui.fullScreenCover, { v -> AppSettings.updateUi { it.copy(fullScreenCover = v) } }, summary = "Runs the cover to the edges of the player instead of a square sleeve", icon = Icons.Rounded.Fullscreen)

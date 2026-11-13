@@ -154,22 +154,30 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 
 /**
- * The playback position, refreshed every frame while playing and the caller
- * is on screen (MediaController extrapolates between updates, so this is
- * smooth), and a few times a second while paused, to catch seeks.
+ * The playback position. Reading it always gives the position now
+ * (MediaController extrapolates between updates), and what shows it is
+ * asked to redraw [TICKS_PER_SECOND] times a second while playing and a few
+ * times a second while paused, to catch seeks. A seek bar moves less than a
+ * pixel between ticks, so redrawing the player every frame (up to 120 times
+ * a second) only warmed the phone. The lyrics read it every frame for their
+ * own smooth motion, and get the live position each time.
  */
 @Composable
 fun rememberPlaybackPosition(vm: PlayerViewModel): () -> Long {
-    val position = remember { mutableLongStateOf(vm.positionMs()) }
+    // Through a quality switch, where the song is heard rather than the main player's stalled reading.
+    fun live() = com.opentune.playback.PlaybackRequests.soundingPosition?.invoke() ?: vm.positionMs()
+    val tick = remember { mutableLongStateOf(live()) }
     LaunchedEffect(vm) {
         while (true) {
-            if (vm.isPlaying.value) withFrameMillis { } else delay(250)
-            // Through a quality switch, where the song is heard rather than the main player's stalled reading.
-            position.longValue = com.opentune.playback.PlaybackRequests.soundingPosition?.invoke() ?: vm.positionMs()
+            delay(if (vm.isPlaying.value) 1_000L / TICKS_PER_SECOND else 250L)
+            tick.longValue = live()
         }
     }
-    return { position.longValue }
+    return remember(vm) { { tick.longValue; live() } }
 }
+
+/** How often the seek bar and times are redrawn while playing. */
+private const val TICKS_PER_SECOND = 10
 
 /** Everything the full player shows, so it can be drawn without a live player. */
 data class PlayerUiState(
@@ -359,7 +367,7 @@ fun PlayerLayout(
     var touchedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var controlsAway by remember { mutableStateOf(false) }
     var seenTouch by remember { mutableLongStateOf(touchedAt) }
-    val artworkMotion = com.opentune.ui.components.rememberArtworkMotion(state.isPlaying && state.ui.movingCover && !state.ui.reduceAnimation)
+    val artworkMotion = com.opentune.ui.components.rememberArtworkMotion(state.isPlaying && state.ui.movingCover && !state.ui.reduceAnimation && !state.ui.coolPlayer)
     val television = com.opentune.ui.tv.LocalIsTv.current
     val focusable = !television && state.ui.lyricsFocus && pane == Pane.LYRICS && state.isPlaying &&
         ((state.lyrics as? LyricsState.Found)?.lyrics is com.opentune.data.lyrics.Lyrics.Synced)
@@ -715,13 +723,13 @@ fun PlayerLayout(
                     theme.playerBackground,
                     current.thumbnailUrl,
                     Modifier.fillMaxSize(),
-                    animate = !state.ui.reduceAnimation,
+                    animate = !state.ui.reduceAnimation && !state.ui.coolPlayer,
                     // While it flies the cover is drawn by the flight, not here as well.
                     fullCover = fullStyle,
                     fullCoverVisible = fullCover && !flight.active,
                     artworkMotion = artworkMotion,
                     fullCoverBottom = with(LocalDensity.current) { coverBottomPx.takeIf { it > 0f }?.toDp() },
-                    movingCover = state.ui.movingCover && !state.ui.reduceAnimation,
+                    movingCover = state.ui.movingCover && !state.ui.reduceAnimation && !state.ui.coolPlayer,
                     playing = state.isPlaying,
                     change = if (state.ui.reduceAnimation) com.opentune.data.settings.CoverChange.FADE else state.ui.coverChange,
                     index = state.currentIndex,
@@ -780,7 +788,7 @@ fun PlayerLayout(
                                 onSeek = { actions.seekTo((it - offsetMs).coerceAtLeast(0)) },
                                 modifier = Modifier.fillMaxSize().nestedScroll(lyricsScroll).focusIn(!state.ui.reduceAnimation),
                                 synced = state.ui.syncedLyrics,
-                                blur = state.ui.blurLyrics,
+                                blur = state.ui.blurLyrics && !state.ui.coolPlayer,
                                 shareSong = current,
                                 onSyncLine = syncLine,
                                 playing = lyricsPlaying,
@@ -927,7 +935,7 @@ fun PlayerLayout(
                                 onSeek = { actions.seekTo((it - offsetMs).coerceAtLeast(0)) },
                                 modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(lyricsScroll),
                                 synced = state.ui.syncedLyrics,
-                                blur = state.ui.blurLyrics,
+                                blur = state.ui.blurLyrics && !state.ui.coolPlayer,
                                 shareSong = current,
                                 onSyncLine = syncLine,
                                 playing = lyricsPlaying,
@@ -1056,7 +1064,7 @@ fun PlayerLayout(
                                             onSeek = { actions.seekTo((it - offsetMs).coerceAtLeast(0)) },
                                             modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(lyricsScroll).focusIn(!state.ui.reduceAnimation),
                                             synced = state.ui.syncedLyrics,
-                                            blur = state.ui.blurLyrics,
+                                            blur = state.ui.blurLyrics && !state.ui.coolPlayer,
                                             shareSong = current,
                                             onSyncLine = syncLine,
                                             playing = lyricsPlaying,

@@ -294,8 +294,13 @@ internal fun rememberLyricsClock(
         shown.longValue = read()
         var lastRaw = read()
         var movedAtNs = -1L
+        var drawnAtNs = 0L
         while (true) {
             val nowNs = withFrameNanos { it }
+            // A 90 or 120 Hz screen asks for a frame that often; the words move smoothly at 60,
+            // and every redraw skipped is work the phone doesn't turn into heat.
+            if (nowNs - drawnAtNs < MIN_FRAME_NS) continue
+            drawnAtNs = nowNs
             val nowMs = nowNs / 1_000_000.0
             val r = read()
             if (r != lastRaw) { lastRaw = r; movedAtNs = nowNs }
@@ -316,6 +321,9 @@ internal fun rememberLyricsClock(
     }
     return { shown.longValue }
 }
+
+/** The shortest time between two redraws of the lyrics: 60 a second. */
+private const val MIN_FRAME_NS = 15_500_000L
 
 /** A position unchanged for this long is a pause or a stall, not playback. */
 private const val STILL_MS = 100L
