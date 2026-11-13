@@ -145,7 +145,7 @@ class LocalLyricFormatsTest {
     @Test
     fun appleLineTimedTtmlSweepsAcrossTheWholeLine() {
         // As Apple ships many songs: itunes:timing="Line", one time per line, overlapping a little.
-        val xml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Line"><body dur="3:10.582"><div begin="13.745" end="23.520" itunes:songPart="Chorus"><p begin="13.745" end="16.871" itunes:key="L3">Four-by-four, I tint my windows up, yeah (Windows up)</p><p begin="17.093" end="20.818" itunes:key="L4">Damn, lil' bro, he did it, one-and-done, yeah</p><p begin="20.493" end="23.520" itunes:key="L5">Out my closet, that shit none-of-none, yeah</p></div></body></tt>"""
+        val xml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Line"><body dur="3:10.582"><div begin="13.745" end="23.520" itunes:songPart="Chorus"><p begin="13.745" end="16.871" itunes:key="L3">Four-by-four, I tint my windows up, yeah</p><p begin="17.093" end="20.818" itunes:key="L4">Damn, lil' bro, he did it, one-and-done, yeah</p><p begin="20.493" end="23.520" itunes:key="L5">Out my closet, that shit none-of-none, yeah</p></div></body></tt>"""
         val lines = Ttml.parse(xml)
         val first = lines.first()
         assertFalse(first.wordSynced)
@@ -157,10 +157,31 @@ class LocalLyricFormatsTest {
         val i = first.words.first { it.text.trim() == "I" }
         val windows = first.words.first { it.text.trim() == "windows" }
         assertTrue(windows.endMs - windows.startMs > (i.endMs - i.startMs) * 5)
-        // Through tidying, a line that runs into the next one is ended where the next starts.
+        // Through tidying, a line that runs into the next one sings faster into it, nothing past it.
         val tidy = LyricsQuality.tidy(Lyrics.Synced(lines, "x"), 190_582) as Lyrics.Synced
         assertEquals(20_493L, tidy.lines[1].endMs)
-        assertTrue(tidy.lines[1].words.last().endMs <= 20_493L)
+        assertEquals(20_493L, tidy.lines[1].words.last().endMs)
+    }
+
+    @Test
+    fun appleAdLibsInBracketsBecomeBackingVocalsSweptAlongside() {
+        val xml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Line"><body><div><p begin="8.083" end="13.582" itunes:key="L2">Yeah, yeah-yeah, yeah-yeah-yeah-yeah-yeah-yeah (Four-by—)</p><p begin="1:10.779" end="1:14.640" itunes:key="L18">Damn, lil' bro, he did it, one-and-done, yeah (Need to) (One-and, one-and—)</p><p begin="1:20.000" end="1:22.000">(Ooh)</p></div></body></tt>"""
+        val lines = Ttml.parse(xml)
+        val l2 = lines[0]
+        assertEquals("Yeah, yeah-yeah, yeah-yeah-yeah-yeah-yeah-yeah", l2.text)
+        assertEquals("Four-by—", l2.background)
+        // The ad-lib sweeps over the end of the line, starting while the line's last words still are.
+        val bg = l2.backgroundWords
+        assertEquals("Four-by—", bg.joinToString("") { it.text }.trim())
+        assertEquals(13_582L, bg.last().endMs)
+        assertTrue(bg.first().startMs < l2.words.last().endMs)
+        assertTrue(l2.words.last().endMs < 13_582L)
+        // Two asides in a row are one backing part.
+        assertEquals("Damn, lil' bro, he did it, one-and-done, yeah", lines[1].text)
+        assertEquals("Need to One-and, one-and—", lines[1].background)
+        // A line that is all aside stays a line.
+        assertEquals("(Ooh)", lines[2].text)
+        assertNull(lines[2].background)
     }
 
     @Test

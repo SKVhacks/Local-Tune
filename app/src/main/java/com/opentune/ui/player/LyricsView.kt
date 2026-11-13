@@ -880,13 +880,31 @@ internal fun LyricLineView(
                     }
                 },
         )
-        // Backing vocals, smaller and softer, under the line they're sung with.
-        line.background?.let {
+        // Backing vocals, smaller and softer, under the line they're sung with. With
+        // times of their own they sweep on those, alongside the line's own words.
+        line.background?.let { bg ->
+            val bgLine = remember(line) {
+                if (line.backgroundWords.isEmpty()) null
+                else line.copy(text = bg, words = line.backgroundWords, background = null, backgroundWords = emptyList())
+            }
+            val bgSweep = isActive && bgLine != null && (line.wordSynced || ui.sweepLineLyrics)
+            val bgLayout = remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
-                it,
+                bg,
                 style = base.copy(fontSize = base.fontSize * 0.62f, lineHeight = base.lineHeight * 0.62f),
-                color = (if (isActive) bright else dim).copy(alpha = if (isActive) 0.6f else 0.25f),
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                color = if (bgSweep) bright.copy(alpha = 0.85f) else (if (isActive) bright else dim).copy(alpha = if (isActive) 0.6f else 0.25f),
+                onTextLayout = { bgLayout.value = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithCache {
+                        val boxes = if (bgLine != null) wordBoxesOf(bgLayout.value, bgLine, bg) else emptyList()
+                        onDrawWithContent {
+                            drawContent()
+                            if (bgSweep && bgLine != null) sweepDim(bgLine, boxes, position(), 0.35f, rtl)
+                        }
+                    },
             )
         }
         romanized?.let {

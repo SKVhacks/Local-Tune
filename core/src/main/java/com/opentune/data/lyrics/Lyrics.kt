@@ -24,6 +24,17 @@ data class LyricLine(
     /** Backing vocals sung under this line, shown smaller beneath it. */
     val background: String? = null,
     /**
+     * When [background] is sung, word by word, so it sweeps on its own time
+     * alongside the line; empty when the source only gives its words. The
+     * words, joined, are [background].
+     */
+    val backgroundWords: List<LyricWord> = emptyList(),
+    /**
+     * The line's end is when its singing ends (Apple's TTML), not just when
+     * the next line starts (LRC): its words fill the whole span.
+     */
+    val exactEnd: Boolean = false,
+    /**
      * Right to left (Arabic, Hebrew, Persian, Urdu), as the source marks it;
      * null when it doesn't say, and the text's own script decides. Kept with
      * downloaded lyrics like the rest of the line.

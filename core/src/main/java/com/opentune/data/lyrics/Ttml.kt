@@ -13,9 +13,17 @@ internal object Ttml {
             val end = time(attr(p.groupValues[1], "end")) ?: start + 4_000
             // Backing vocals come wrapped in a span of their own; they're shown under the line.
             var background: String? = null
+            val backgroundWords = mutableListOf<LyricWord>()
             val inner = BACKING.replace(p.groupValues[2]) { m ->
                 val said = unescape(m.groupValues[1].replace(Regex("<[^>]+>"), "")).replace(Regex("\\s+"), " ").trim()
                 if (said.isNotEmpty()) background = listOfNotNull(background, said).joinToString(" ")
+                // Their own word times, when given: they sweep on those.
+                SPAN.findAll(m.groupValues[1]).forEach { s ->
+                    val b = time(attr(s.groupValues[1], "begin")) ?: return@forEach
+                    val e = time(attr(s.groupValues[1], "end")) ?: b
+                    val word = unescape(s.groupValues[2])
+                    if (word.isNotBlank()) backgroundWords += LyricWord(word + if (s.groupValues[3].isNotEmpty()) " " else "", b, e)
+                }
                 ""
             }
             val voice = voices[attr(p.groupValues[1], "ttm:agent")] ?: VOICE_LEAD
@@ -27,8 +35,16 @@ internal object Ttml {
             val text = if (spans.isNotEmpty()) spans.joinToString("") { it.text }.replace(Regex("\\s+"), " ").trim()
             else unescape(inner.replace(Regex("<[^>]+>"), "")).replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@mapNotNull null
-            if (spans.size >= 2) LyricLine(start, end, text, spans, wordSynced = true, voice = voice, background = background, rtl = rtl)
-            else LyricLine(start, end, text, LrcParser.spreadAcross(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl)
+            if (spans.size >= 2) {
+                // Timed backing words are shown as timed: the text is theirs, joined.
+                val bgWords = backingWords(backgroundWords)
+                return@mapNotNull LyricLine(
+                    start, end, text, spans, wordSynced = true, voice = voice,
+                    background = if (bgWords.isNotEmpty()) bgWords.joinToString("") { it.text }.trim() else background,
+                    backgroundWords = bgWords, rtl = rtl, exactEnd = true,
+                )
+            }
+            lineTimed(start, end, text, voice, background, rtl)
         }.toList()
     }
 
@@ -50,6 +66,43 @@ internal object Ttml {
 
     /** How long the recording these were timed to is: `<body dur>`, when it says. */
     fun length(xml: String): Long? = Regex("""<body\b[^>]*\bdur="([^"]+)"""").find(xml)?.groupValues?.get(1)?.let(::time)
+
+    /**
+     * A line timed only as a whole. Apple writes its ad-libs at the end in
+     * brackets, "… yeah (Four-by—)", and shows them as backing vocals: under
+     * the line, without the brackets, lighting while the line's last words
+     * are still sweeping. So the line's words sweep over its time up to
+     * halfway through the ad-lib's share, and the ad-lib over the end of it.
+     */
+    internal fun lineTimed(start: Long, end: Long, text: String, voice: Int, background: String?, rtl: Boolean?): LyricLine {
+        val split = TRAILING_ADLIBS.find(text)
+        if (split == null || background != null || end <= start) {
+            return LyricLine(start, end, text, LrcParser.spreadAcross(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl, exactEnd = true)
+        }
+        val main = split.groupValues[1].trim()
+        val adlibs = Regex("""\(([^()]*)\)""").findAll(split.groupValues[2]).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+        val mainLetters = main.count { it.isLetterOrDigit() }.coerceAtLeast(1)
+        val adlibLetters = adlibs.count { it.isLetterOrDigit() }.coerceAtLeast(1)
+        val span = end - start
+        val adlibSpan = (span * adlibLetters / (mainLetters + adlibLetters)).coerceIn(minOf(ADLIB_MIN_MS, span / 2), span / 2)
+        return LyricLine(
+            start, end, main, LrcParser.spreadAcross(main, start, end - adlibSpan / 2), wordSynced = false, voice = voice,
+            background = adlibs, backgroundWords = LrcParser.spreadAcross(adlibs, end - adlibSpan, end), rtl = rtl, exactEnd = true,
+        )
+    }
+
+    /** One or more bracketed asides closing a line, after words of its own. */
+    private val TRAILING_ADLIBS = Regex("""^(.*?[^\s(])\s*((?:\([^()]*\)\s*)+)$""")
+    private const val ADLIB_MIN_MS = 500L
+
+    /** Backing words in order, the last of each gap-free run keeping no trailing space. */
+    private fun backingWords(words: List<LyricWord>): List<LyricWord> {
+        if (words.isEmpty()) return words
+        val sorted = words.sortedBy { it.startMs }
+        return sorted.mapIndexed { i, w -> if (i == sorted.lastIndex) w.copy(text = w.text.trimEnd()) else w }
+    }
+
+    private val SPAN = Regex("""<span\b([^>]*)>([^<]*)</span>(\s*)""")
 
     private val BACKING = Regex("""<span\b[^>]*ttm:role="x-bg"[^>]*>((?:\s*<span\b[^>]*>[^<]*</span>\s*)*)</span>""")
 

@@ -60,6 +60,7 @@ internal object LyricsQuality {
                 text = unescape(line.text),
                 background = line.background?.let(::unescape),
                 words = line.words.map { if ('&' in it.text) it.copy(text = unescape(it.text)) else it },
+                backgroundWords = line.backgroundWords.map { if ('&' in it.text) it.copy(text = unescape(it.text)) else it },
             )
         })
     }
@@ -111,7 +112,7 @@ internal object LyricsQuality {
             if (prev != null && raw.startMs - prev.startMs <= SAME_MS) {
                 if (key(prev.text) == key(text)) continue
                 if (!prev.wordSynced && !raw.wordSynced) {
-                    out[out.lastIndex] = prev.copy(background = listOfNotNull(prev.background, text).joinToString(" "))
+                    out[out.lastIndex] = prev.copy(background = listOfNotNull(prev.background, text).joinToString(" "), backgroundWords = emptyList())
                     continue
                 }
             }
@@ -138,7 +139,14 @@ internal object LyricsQuality {
         if (end <= start) end = start + LONE_LINE_MS
         if (durationMs > start && end > durationMs) end = durationMs
         if (end == line.endMs && line.words.isNotEmpty()) return line
-        return line.copy(endMs = end, words = LrcParser.spreadWords(line.text, start, end), wordSynced = false)
+        // An end that was the end of the singing: the line just sings faster into the
+        // next one, every word and backing word kept in its place along the line.
+        if (line.exactEnd && line.words.isNotEmpty() && line.endMs > start) {
+            fun squeeze(t: Long) = start + (t - start) * (end - start) / (line.endMs - start)
+            fun List<LyricWord>.squeezed() = map { it.copy(startMs = squeeze(it.startMs), endMs = squeeze(it.endMs)) }
+            return line.copy(endMs = end, words = line.words.squeezed(), backgroundWords = line.backgroundWords.squeezed())
+        }
+        return line.copy(endMs = end, words = LrcParser.spreadWords(line.text, start, end), wordSynced = false, backgroundWords = emptyList())
     }
 
     /** A word with no end (or one before its start) ends where the next starts, or the line ends, within [WORD_FILL_MS]. */
