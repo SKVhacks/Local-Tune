@@ -228,4 +228,12 @@ class LocalLyricFormatsTest {
         assertNotNull(ReplayGain.parseDb("-3"))
         assertNull(ReplayGain.parseDb("loud"))
     }
+
+    @Test
+    fun appleTtmlSweepsButPlainLrcLightsWholeLines() {
+        val ttml = Ttml.parse("""<tt itunes:timing="Line"><body><div><p begin="1.0" end="4.0">Life in plastic</p></div></body></tt>""")
+        assertTrue(ttml.single().sweeps)
+        val lrc = LrcParser.parse("[00:27.72]Adiyae kolluthey\n[00:31.72]Azhago alluthey")
+        assertTrue(lrc.none { it.sweeps || it.wordSynced })
+    }
 }
