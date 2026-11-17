@@ -188,12 +188,20 @@ object LrcParser {
      * the break only showed as one once the crawl was done.
      */
     /**
-     * [text]'s words laid evenly by letter over the whole of [start]..[end]:
-     * for a line whose end is the end of its singing (Apple's line-timed TTML),
-     * so a sweep through them crosses the line letter by letter in exactly
-     * its time, as Apple Music shows these lines.
+     * [text]'s words laid by letter from [start], for a line timed only as a
+     * whole (Apple's line-timed TTML), so a sweep crosses it letter by letter.
+     *
+     * Not evenly over the whole line: a line's end takes in its held last note,
+     * and the words themselves come early, so an even spread trailed the voice
+     * by most of a second on a quick verse. The sweep goes at a sung pace
+     * ([pacedMs]), no slower than over [MIN_SHARE] of the line and done by
+     * [MAX_SHARE] of it, which matches where Apple Music's own highlight is.
      */
-    fun spreadAcross(text: String, start: Long, end: Long): List<LyricWord> {
+    fun spreadAcross(text: String, start: Long, end: Long): List<LyricWord> =
+        if (end <= start) spreadWords(text, start, end) else spreadOver(text, start, start + sweepMs(text, end - start))
+
+    /** [text]'s words laid by letter over exactly [start]..[end], with no gaps. */
+    fun spreadOver(text: String, start: Long, end: Long): List<LyricWord> {
         val tokens = Regex("""\S+\s*""").findAll(text).map { it.value }.toList()
         if (tokens.isEmpty() || end <= start) return spreadWords(text, start, end)
         val weights = tokens.map { t -> t.count { it.isLetterOrDigit() }.coerceAtLeast(1) }
@@ -206,10 +214,36 @@ object LrcParser {
         }
     }
 
+    /** How long a sweep through [text] takes on a line [lineMs] long; see [spreadAcross]. */
+    internal fun sweepMs(text: String, lineMs: Long): Long =
+        pacedMs(text).coerceIn((lineMs * MIN_SHARE).toLong(), (lineMs * MAX_SHARE).toLong()).coerceAtLeast(1)
+
+    /**
+     * About how long [text] takes to get through at the pace of most pop and rap
+     * vocals: some 12 letters a second, a CJK character being a syllable of its own.
+     */
+    internal fun pacedMs(text: String): Long {
+        var ms = 150L
+        for (c in text) {
+            if (!Character.isLetterOrDigit(c)) continue
+            ms += when (Character.UnicodeScript.of(c.code)) {
+                Character.UnicodeScript.HAN, Character.UnicodeScript.HANGUL,
+                Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA -> 240L
+                else -> 80L
+            }
+        }
+        return ms
+    }
+
+    private const val MIN_SHARE = 0.45
+    private const val MAX_SHARE = 0.9
+
     fun spreadWords(text: String, start: Long, end: Long): List<LyricWord> {
         val tokens = Regex("""\S+\s*""").findAll(text).map { it.value }.toList()
         if (tokens.isEmpty()) return emptyList()
-        val span = minOf(((end - start) * 0.85).toLong(), singingMs(text) * 3 / 2).coerceIn(300L, 8_000L)
+        // A line's end here may be the next line's start after a break, so no share of it is
+        // a floor: the words take an ordinary sung time (not half again, which trailed the voice).
+        val span = minOf(((end - start) * 0.85).toLong(), singingMs(text)).coerceIn(300L, 8_000L)
         val totalChars = tokens.sumOf { it.trim().length.coerceAtLeast(1) }
         var cursor = start
         return tokens.map { token ->

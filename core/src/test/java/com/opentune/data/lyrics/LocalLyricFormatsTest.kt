@@ -149,10 +149,11 @@ class LocalLyricFormatsTest {
         val lines = Ttml.parse(xml)
         val first = lines.first()
         assertFalse(first.wordSynced)
-        // The sweep starts on the line's time and ends exactly at its end, with no gaps.
+        // The sweep starts on the line's time, runs with no gaps, and is done before the
+        // line's held end: a quick verse is sung early in its line.
         assertEquals(13_745L, first.words.first().startMs)
-        assertEquals(16_871L, first.words.last().endMs)
         first.words.zipWithNext().forEach { (a, b) -> assertEquals(a.endMs, b.startMs) }
+        assertTrue(first.words.last().endMs <= 13_745L + (16_871L - 13_745L) * 9 / 10)
         // Longer words take longer: "windows" more than "I".
         val i = first.words.first { it.text.trim() == "I" }
         val windows = first.words.first { it.text.trim() == "windows" }
@@ -160,7 +161,7 @@ class LocalLyricFormatsTest {
         // Through tidying, a line that runs into the next one sings faster into it, nothing past it.
         val tidy = LyricsQuality.tidy(Lyrics.Synced(lines, "x"), 190_582) as Lyrics.Synced
         assertEquals(20_493L, tidy.lines[1].endMs)
-        assertEquals(20_493L, tidy.lines[1].words.last().endMs)
+        assertTrue(tidy.lines[1].words.last().endMs <= 20_493L)
     }
 
     @Test
@@ -170,12 +171,16 @@ class LocalLyricFormatsTest {
         val l2 = lines[0]
         assertEquals("Yeah, yeah-yeah, yeah-yeah-yeah-yeah-yeah-yeah", l2.text)
         assertEquals("Four-by—", l2.background)
-        // The ad-lib sweeps over the end of the line, starting while the line's last words still are.
+        // The ad-lib comes in while the line's last words are still sweeping, and is done by the line's end.
         val bg = l2.backgroundWords
         assertEquals("Four-by—", bg.joinToString("") { it.text }.trim())
-        assertEquals(13_582L, bg.last().endMs)
+        assertTrue(bg.last().endMs <= 13_582L)
         assertTrue(bg.first().startMs < l2.words.last().endMs)
-        assertTrue(l2.words.last().endMs < 13_582L)
+        // Where Apple Music's own highlight is: at 0:10.5 its sweep is most of the way along.
+        val at = 10_500L
+        val litLetters = l2.words.sumOf { w -> val n = w.text.count(Char::isLetterOrDigit); when { at >= w.endMs -> n; at <= w.startMs -> 0; else -> (n * (at - w.startMs) / (w.endMs - w.startMs)).toInt() } }
+        val allLetters = l2.text.count(Char::isLetterOrDigit)
+        assertTrue("only $litLetters of $allLetters lit", litLetters >= allLetters * 3 / 4)
         // Two asides in a row are one backing part.
         assertEquals("Damn, lil' bro, he did it, one-and-done, yeah", lines[1].text)
         assertEquals("Need to One-and, one-and—", lines[1].background)

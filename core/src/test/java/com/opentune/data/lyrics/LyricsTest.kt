@@ -19,9 +19,10 @@ class LrcParserTest {
     }
 
     @Test
-    fun aLineWithItsNextCloseByStillFillsMostOfIt() {
+    fun aLineWithItsNextCloseByIsSungAtAnOrdinaryPace() {
         val lines = LrcParser.parse("[00:10.00]Tum hi ho\n[00:12.00]Ab tum hi ho", 0L)
-        assertTrue(lines.first().sungUntilMs() in 11_650L..11_700L)
+        // Sung at an ordinary pace, done before the next line rather than crawling up to it.
+        assertTrue(lines.first().sungUntilMs() in 11_400L..11_700L)
     }
 
 

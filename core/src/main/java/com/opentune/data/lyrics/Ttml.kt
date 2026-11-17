@@ -71,8 +71,8 @@ internal object Ttml {
      * A line timed only as a whole. Apple writes its ad-libs at the end in
      * brackets, "… yeah (Four-by—)", and shows them as backing vocals: under
      * the line, without the brackets, lighting while the line's last words
-     * are still sweeping. So the line's words sweep over its time up to
-     * halfway through the ad-lib's share, and the ad-lib over the end of it.
+     * are still sweeping. So the line's words sweep at a sung pace, and the
+     * ad-lib comes in as the last of them go.
      */
     internal fun lineTimed(start: Long, end: Long, text: String, voice: Int, background: String?, rtl: Boolean?): LyricLine {
         val split = TRAILING_ADLIBS.find(text)
@@ -81,13 +81,16 @@ internal object Ttml {
         }
         val main = split.groupValues[1].trim()
         val adlibs = Regex("""\(([^()]*)\)""").findAll(split.groupValues[2]).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.joinToString(" ")
-        val mainLetters = main.count { it.isLetterOrDigit() }.coerceAtLeast(1)
-        val adlibLetters = adlibs.count { it.isLetterOrDigit() }.coerceAtLeast(1)
         val span = end - start
-        val adlibSpan = (span * adlibLetters / (mainLetters + adlibLetters)).coerceIn(minOf(ADLIB_MIN_MS, span / 2), span / 2)
+        // The line's words at a sung pace, leaving the ad-lib room at the end ...
+        val mainMs = LrcParser.sweepMs(main, span).coerceAtMost(span - minOf(ADLIB_MIN_MS, span / 2))
+        val words = LrcParser.spreadOver(main, start, start + mainMs)
+        // ... and the ad-lib coming in as the line's last words go, at its own pace.
+        val adlibStart = start + mainMs * 7 / 8
+        val adlibEnd = minOf(end, adlibStart + maxOf(LrcParser.pacedMs(adlibs), ADLIB_MIN_MS))
         return LyricLine(
-            start, end, main, LrcParser.spreadAcross(main, start, end - adlibSpan / 2), wordSynced = false, voice = voice,
-            background = adlibs, backgroundWords = LrcParser.spreadAcross(adlibs, end - adlibSpan, end), rtl = rtl, exactEnd = true,
+            start, end, main, words, wordSynced = false, voice = voice,
+            background = adlibs, backgroundWords = LrcParser.spreadOver(adlibs, adlibStart, adlibEnd), rtl = rtl, exactEnd = true,
         )
     }
 
