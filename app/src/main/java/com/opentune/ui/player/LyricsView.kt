@@ -153,9 +153,9 @@ fun LyricsView(
             is LyricsState.NotFound -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 val folders by com.opentune.data.lyrics.LocalLyrics.folders.collectAsState()
                 MessageState(
-                    Icons.Rounded.Lyrics, "No lyrics for this one",
-                    message = if (folders.isEmpty()) "Add the folder with your .lrc and .ttml files in Settings › Lyrics › Lyrics folders."
-                    else "No .ttml, .lrc or .txt file with this song's name was found in your lyrics folders.",
+                    Icons.Rounded.Lyrics, "No lyrics available",
+                    // Just the plain message; the folder hint only until a lyrics folder is added.
+                    message = if (folders.isEmpty()) "Add your .lrc and .ttml folder in Settings › Lyrics › Lyrics folders." else null,
                 )
             }
             is LyricsState.Found -> when (val lyrics = state.lyrics) {
