@@ -56,6 +56,10 @@ dependencies {
     api("androidx.media3:media3-common:1.11.0")
     api("androidx.media3:media3-datasource-okhttp:1.11.0")
     api("androidx.media3:media3-database:1.11.0")
+    // FFmpeg's audio decoders, for what Android has none of: ALAC (Apple Lossless .m4a),
+    // and E-AC-3/AC-3 and others on phones without them. Jellyfin's build of Media3's
+    // FFmpeg extension, used only where the phone's own decoders can't play a file.
+    api("org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.11.0")
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     // HTTP for casting to DLNA renderers on the home network.

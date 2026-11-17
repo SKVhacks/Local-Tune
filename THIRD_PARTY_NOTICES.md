@@ -77,3 +77,12 @@ STREAMINFO measurement approach from `AudioOutputPolicy.kt` and
 FLAC decoders and reads actual FLAC metadata rather than treating float PCM
 as proof of a hi-res master. No proprietary SF Pro font files are bundled in
 the browser preview; it uses DM Sans and system fallbacks.
+
+## FFmpeg audio decoders
+
+Apple Lossless (ALAC) and other formats some phones can't decode are
+played with [FFmpeg](https://ffmpeg.org) (LGPL-2.1-or-later), through
+Media3's FFmpeg extension (Apache-2.0) as built and published by the
+[Jellyfin](https://github.com/jellyfin/jellyfin-androidx-media) project
+(`org.jellyfin.media3:media3-ffmpeg-decoder`). Its source, and how to
+build it, are at that address.

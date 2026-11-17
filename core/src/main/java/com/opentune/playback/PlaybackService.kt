@@ -15,6 +15,7 @@ import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -134,7 +135,13 @@ class PlaybackService : MediaLibraryService() {
         fun renderersFor(effects: DspAudioProcessor, exclusive: Boolean) = object : DefaultRenderersFactory(context) {
             init {
                 setEnableDecoderFallback(true)
+                // FFmpeg's decoders come after the phone's own: they take what the phone
+                // can't decode, or what's kept from its decoders below.
+                setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON)
                 setMediaCodecSelector { mime, secure, tunneling ->
+                    // Apple Lossless always goes to FFmpeg: phones' ALAC decoders are few and
+                    // unreliable (Qualcomm's c2.qti.alac.sw.decoder fails on every song, a moment in).
+                    if (mime == MimeTypes.AUDIO_ALAC) return@setMediaCodecSelector emptyList()
                     val selector = if (mime == "audio/flac") androidx.media3.exoplayer.mediacodec.MediaCodecSelector.PREFER_SOFTWARE
                         else androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
                     selector.getDecoderInfos(mime, secure, tunneling).filterNot {
