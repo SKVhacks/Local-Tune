@@ -796,9 +796,9 @@ internal fun LyricLineView(
     // A word's trailing space is left out, and a word that still runs across a
     // wrap gets one box per row: a single box for the word that ends the first
     // row would span both rows edge to edge and dim the whole line until sung.
-    // Words light one by one where the source timed them. A line timed as a whole
-    // sweeps across letter by letter over its time (Apple Music's way), unless
-    // that's turned off, when it lights all at once.
+    // Words light one by one where the source timed them. A line timed only as a
+    // whole lights all at once (Apple Music's way for line-synced lyrics), unless
+    // "Sweep line-timed lyrics" is turned on.
     val sweep = isActive && line.words.isNotEmpty() && (line.wordSynced || ui.sweepLineLyrics)
     val cardPad by animateDpAsState(if (picking) 14.dp else 0.dp, tween(220), label = "cardPad")
     Column(

@@ -975,7 +975,7 @@ private fun settingsSections(
                 Entry("Sweep line-timed lyrics", "letter by letter karaoke sweep line synced fill progress apple") {
                     ToggleRow(
                         "Sweep line-timed lyrics", ui.sweepLineLyrics, { v -> AppSettings.updateUi { it.copy(sweepLineLyrics = v) } },
-                        summary = "Lines with no word timing fill letter by letter over the line's time, as Apple Music shows them. Off lights the whole line at once.",
+                        summary = "Off: files with only line times light a whole line at once, and only word-synced files sweep. On: guess word times and sweep those lines too.",
                         icon = Icons.Rounded.Flare,
                     )
                 },

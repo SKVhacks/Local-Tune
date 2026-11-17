@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -449,10 +450,12 @@ data class InterfaceSettings(
     val lyricsGlow: Boolean = false,
     /**
      * Lines timed only as a whole (no word times in the file) sweep across
-     * letter by letter over the line's time, as Apple Music shows them,
-     * rather than lighting all at once.
+     * over the line's time with estimated word times. Off (the default), they
+     * light all at once, as Apple Music shows line-synced lyrics: only files
+     * with real word times sweep. Saved under a new key so the old "on" is dropped.
      */
-    val sweepLineLyrics: Boolean = true,
+    @SerialName("sweepEstimatedLines")
+    val sweepLineLyrics: Boolean = false,
     /** High performance mode: ask for a fast refresh rate while the app is open. */
     val highRefreshRate: Boolean = true,
     /** The rate high performance mode asks for, in Hz; 0 for the screen's fastest. */
