@@ -825,7 +825,7 @@ private fun settingsSections(
                 Entry("Player opening", "now playing sheet open close animation spring smooth bouncy snappy") {
                     NavRow("Player opening", { playerMotionDialog = true }, summary = ui.playerMotion.summary, icon = Icons.Rounded.UnfoldMore, value = ui.playerMotion.label)
                 },
-                Entry("Player background", "cover blur blurred mesh gradient echo glow colours pure black oled amoled") {
+                Entry("Player background", "flow apple music animated cover blur blurred mesh gradient echo glow colours pure black oled amoled") {
                     SettingRow("Player background", icon = Icons.Rounded.Wallpaper, below = {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PlayerBackground.entries.forEach { b ->
@@ -837,7 +837,7 @@ private fun settingsSections(
                 Entry("Keep the phone cool", "battery heat warm hot power saver cool performance smooth") {
                     ToggleRow(
                         "Keep the phone cool", ui.coolPlayer, { v -> AppSettings.updateUi { it.copy(coolPlayer = v) } },
-                        summary = "The cover and background hold still and lyric lines dim instead of blurring, so the phone stays cooler and the battery lasts longer",
+                        summary = "The cover holds still, the Flow background moves more slowly, other backgrounds hold still and lyric lines dim instead of blurring, so the phone stays cooler and the battery lasts longer",
                         icon = Icons.Rounded.BatterySaver,
                     )
                 },

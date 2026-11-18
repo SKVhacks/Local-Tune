@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -44,6 +45,8 @@ enum class PaletteStyleOption(val label: String) {
 
 @Serializable
 enum class PlayerBackground(val label: String) {
+    /** Apple Music's: the cover as soft colour, turning and flowing slowly, drawn by a small shader. */
+    FLOW("Flow"),
     /** The cover itself, blurred smooth and drifting slowly, as the album and playlist pages' headers. */
     BLUR("Cover blur"),
     /** Soft patches of several of the cover's colours, drifting into each other. */
@@ -89,7 +92,9 @@ data class ThemeSettings(
     val pureBlack: Boolean = true,
     /** Re-seed the whole app from the playing track's artwork. */
     val colorFromArtwork: Boolean = true,
-    val playerBackground: PlayerBackground = PlayerBackground.BLUR,
+    /** Saved under a new key so everyone starts on Flow, the Apple Music look; any other can still be picked. */
+    @SerialName("playerBackdrop")
+    val playerBackground: PlayerBackground = PlayerBackground.FLOW,
     val font: AppFont = AppFont.SYSTEM,
     val textWeight: TextWeight = TextWeight.MEDIUM,
     /** Private copied file ID, never an external storage path or URI. */
@@ -871,7 +876,7 @@ object AppSettings {
                 paletteStyle = enumOf(PaletteStyleOption.entries.toTypedArray(), p.getString("palette_style", null), PaletteStyleOption.TonalSpot),
                 pureBlack = p.getBoolean("pure_black", true),
                 colorFromArtwork = p.getBoolean("color_from_artwork", true),
-                playerBackground = enumOf(PlayerBackground.entries.toTypedArray(), p.getString("player_background", null), PlayerBackground.BLUR),
+                playerBackground = enumOf(PlayerBackground.entries.toTypedArray(), p.getString("player_background", null), PlayerBackground.FLOW),
             ),
             sound = SoundSettings(
                 speed = p.getFloat("sound_speed", 1f),

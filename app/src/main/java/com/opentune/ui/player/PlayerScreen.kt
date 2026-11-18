@@ -723,7 +723,9 @@ fun PlayerLayout(
                     theme.playerBackground,
                     current.thumbnailUrl,
                     Modifier.fillMaxSize(),
-                    animate = !state.ui.reduceAnimation && !state.ui.coolPlayer,
+                    // Flow is cheap enough to keep moving with Keep the phone cool on, just slower.
+                    animate = !state.ui.reduceAnimation && (!state.ui.coolPlayer || theme.playerBackground == com.opentune.data.settings.PlayerBackground.FLOW),
+                    gentle = state.ui.coolPlayer,
                     // While it flies the cover is drawn by the flight, not here as well.
                     fullCover = fullStyle,
                     fullCoverVisible = fullCover && !flight.active,

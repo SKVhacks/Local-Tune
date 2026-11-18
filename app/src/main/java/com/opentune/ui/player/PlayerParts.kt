@@ -156,6 +156,8 @@ fun PlayerBackdrop(
     artworkUrl: String?,
     modifier: Modifier = Modifier,
     animate: Boolean = true,
+    /** Keep the phone cool is on: Flow moves at half the steps. */
+    gentle: Boolean = false,
     fullCover: Boolean = false,
     /** Where the player's cover area ends, from the top; the full cover runs a little past it. */
     fullCoverBottom: Dp? = null,
@@ -186,6 +188,7 @@ fun PlayerBackdrop(
     Box(modifier.background(scheme.surface)) {
         when (style) {
             PlayerBackground.AMOLED -> Unit
+            PlayerBackground.FLOW -> FlowBackground(artworkUrl, animate && playing, gentle, Modifier.matchParentSize())
             PlayerBackground.ECHO_GLOW -> EchoGlowBackground(animate && playing, Modifier.matchParentSize())
             PlayerBackground.BLUR -> CoverBlur(artworkUrl, animate && playing, Modifier.matchParentSize())
             PlayerBackground.MESH -> MeshGradient(artworkUrl, animate, Modifier.matchParentSize())
@@ -475,7 +478,7 @@ private fun MeshGradient(artworkUrl: String?, animate: Boolean, modifier: Modifi
  * own, then blurred; before Android 12, which has no blur, the stretch alone does it.
  */
 @Composable
-private fun CoverBlur(artworkUrl: String?, moving: Boolean, modifier: Modifier = Modifier) {
+internal fun CoverBlur(artworkUrl: String?, moving: Boolean, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     // Stepped like the mesh: a slow drift needs only a dozen steps a second, and each step
     // makes the player's glass blur and bend again.
