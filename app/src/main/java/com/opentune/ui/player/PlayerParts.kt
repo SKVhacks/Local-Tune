@@ -846,7 +846,8 @@ fun SeekBar(
     val gradientEnd = MaterialTheme.colorScheme.tertiary
     val gradient = look.seekbarColor == com.opentune.data.settings.SeekbarColor.GRADIENT
     val shownMarks = if (look.seekbarMarks) marks else emptyList()
-    val inactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+    // The unplayed track as Apple Music has it: a clear, light strip, not a faint line.
+    val inactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
     val bufferedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
     val markDot = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 

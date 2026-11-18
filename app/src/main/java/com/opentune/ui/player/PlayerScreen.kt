@@ -50,6 +50,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -1196,47 +1198,26 @@ fun PlayerLayout(
                 )
                 if (!state.ui.hideVolumeBar && !minimal && roomy) VolumeBar(Modifier.padding(vertical = 4.dp))
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    GlassToggle(PlayerIcons.Lyrics, "Lyrics", pane == Pane.LYRICS, { toggle(Pane.LYRICS) })
-                    // One pill that morphs between sleep and output, and the queue's modes.
-                    val inQueueNow = pane == Pane.QUEUE
-                    MorphPill(
-                        second = inQueueNow,
-                        animate = !state.ui.reduceAnimation,
-                        firstFill = Color.White.copy(alpha = 0.14f),
-                        secondFill = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.weight(1f),
-                        first = { enabled ->
-                            // Its two halves split by a hairline; the fill is the morphing one behind.
-                            Row(Modifier.height(52.dp).clip(RoundedCornerShape(30.dp)), verticalAlignment = Alignment.CenterVertically) {
-                                // Each half is the button: a press fills the half, not a circle round the icon.
-                                // Apple Music's has where it's playing, then who's listening with you.
-                                if (!apple) {
-                                    PillButton(Icons.Rounded.Bedtime, "Sleep timer", sleepLabel != null, { showSleep = true }, enabled = enabled)
-                                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.16f)))
-                                }
-                                PillButton(
-                                    outputRoute.icon,
-                                    "Audio output",
-                                    // Headphones only change the icon; lit up is for casting, a session to notice.
-                                    outputRoute == OutputRoute.CAST,
-                                    { showOutput = true },
-                                    enabled = enabled,
-                                )
-                            }
-                        },
-                        secondContent = { enabled ->
-                            ModesPill(state.shuffleMode, state.smartShuffleAvailable, state.repeatMode, actions.toggleShuffle, actions.cycleRepeat, filled = false, enabled = enabled)
-                        },
-                    )
-                    GlassToggle(Icons.AutoMirrored.Rounded.FormatListBulleted, "Queue", pane == Pane.QUEUE, { toggle(Pane.QUEUE) })
+                // Apple Music's bottom row: three bare icons, lyrics, where it's playing and the
+                // queue. Open, the queue's own shuffle and repeat take the middle place.
+                val inQueueNow = pane == Pane.QUEUE
+                Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    AppleBarButton(PlayerIcons.Lyrics, "Lyrics", pane == Pane.LYRICS) { toggle(Pane.LYRICS) }
+                    androidx.compose.animation.AnimatedContent(inQueueNow, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "middle") { queue ->
+                        if (queue) ModesPill(state.shuffleMode, state.smartShuffleAvailable, state.repeatMode, actions.toggleShuffle, actions.cycleRepeat, filled = false, enabled = true)
+                        // The phone's own speaker shows the cast mark, as Apple shows AirPlay's;
+                        // headphones and earbuds show themselves.
+                        else AppleBarButton(if (outputRoute == OutputRoute.PHONE) Icons.Rounded.Cast else outputRoute.icon, "Audio output", false) { showOutput = true }
+                    }
+                    AppleBarButton(Icons.AutoMirrored.Rounded.FormatListBulleted, "Queue", inQueueNow) { toggle(Pane.QUEUE) }
                 }
-                if (!minimal && roomy) Text(
-                    sleepLabel ?: device,
+                // Only a running sleep timer says anything under the row.
+                if (sleepLabel != null && !minimal && roomy) Text(
+                    sleepLabel,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
                 )
                 }
                 }
@@ -1391,7 +1372,8 @@ private fun LyricsOffsetDialog(videoId: String, autoMs: Long, onDismiss: () -> U
 /** Title and artist with the heart and "…" glass buttons on the right. */
 @Composable
 private fun RowScope.TitleRow(song: Song, liked: Boolean, onLike: () -> Unit, onMore: () -> Unit, compact: Boolean = false) {
-    val apple = AppSettings.ui.collectAsState().value.playerStyle == PlayerStyle.APPLE_MUSIC
+    // Apple Music's look for every layout: bold title, a lighter artist, small round buttons.
+    val apple = true
     Column(Modifier.weight(1f)) {
         // Tapping the title opens its album, and the artist opens their page.
         val menu = LocalSongMenu.current
@@ -1421,16 +1403,16 @@ private fun RowScope.TitleRow(song: Song, liked: Boolean, onLike: () -> Unit, on
             else MaterialTheme.typography.titleMedium,
         )
     }
-    Spacer(Modifier.width(10.dp))
-    if (apple) StarButton(liked, onLike) else HeartButton(liked, onLike)
-    Spacer(Modifier.width(10.dp))
+    Spacer(Modifier.width(12.dp))
+    StarButton(liked, onLike)
+    Spacer(Modifier.width(14.dp))
     Box(
-        Modifier.size(46.dp).clip(CircleShape)
-            .background(if (apple) Color.White.copy(alpha = 0.14f) else LocalContentColor.current.copy(alpha = PLAYER_BUTTON_TINT))
+        Modifier.size(APPLE_ROUND_BUTTON).clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.2f))
             .clickable(onClick = onMore),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Rounded.MoreHoriz, "More", Modifier.size(if (apple) 24.dp else 26.dp))
+        Icon(Icons.Rounded.MoreVert, "More", Modifier.size(22.dp))
     }
 }
 
@@ -1499,7 +1481,7 @@ private fun StarButton(liked: Boolean, onClick: () -> Unit) {
         pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 500f))
     }
     Box(
-        Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
+        Modifier.size(APPLE_ROUND_BUTTON).clip(CircleShape).background(Color.White.copy(alpha = 0.2f))
             .clickable(indication = com.opentune.ui.components.FocusRing(CircleShape), interactionSource = null) {
                 haptics.pattern(if (liked) com.opentune.ui.components.Haptics.Pattern.OFF else com.opentune.ui.components.Haptics.Pattern.LIKE)
                 if (!liked) pops++
@@ -1508,8 +1490,37 @@ private fun StarButton(liked: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(if (liked) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-            if (liked) "Remove from Liked" else "Favourite", Modifier.size(24.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value },
+            if (liked) "Remove from Liked" else "Favourite", Modifier.size(22.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value },
             tint = if (liked) Color(0xFFFA2D48) else LocalContentColor.current)
+    }
+}
+
+/** The round star and more buttons beside the title, Apple Music's size. */
+private val APPLE_ROUND_BUTTON = 38.dp
+
+/**
+ * One of the bottom row's buttons as Apple Music draws them: a bare icon,
+ * and while its pane is open, a small white rounded square behind it with
+ * the icon cut out of it in the background's colour.
+ */
+@Composable
+private fun AppleBarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    val fill by androidx.compose.animation.animateColorAsState(if (selected) Color.White else Color.Transparent, tween(180), label = "barFill")
+    val ink by androidx.compose.animation.animateColorAsState(if (selected) Color.Black.copy(alpha = 0.55f) else LocalContentColor.current, tween(180), label = "barInk")
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.86f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "barPress")
+    Box(
+        Modifier.size(52.dp).clickable(press, null, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(40.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(RoundedCornerShape(10.dp)).background(fill),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, label, Modifier.size(27.dp), tint = ink)
+        }
     }
 }
 

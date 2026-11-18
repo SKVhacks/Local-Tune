@@ -363,7 +363,9 @@ data class InterfaceSettings(
     /** Solid fills instead of frosted glass. */
     val reduceBlur: Boolean = false,
     val fullScreenCover: Boolean = false,
-    val hideVolumeBar: Boolean = false,
+    /** Hidden by default, as in Apple Music; saved under a new key so the old "shown" is dropped. */
+    @SerialName("hideVolume")
+    val hideVolumeBar: Boolean = true,
     val hideSongStatus: Boolean = false,
     /** Show the current lyric above the controls, independently of the player layout. */
     val lyricsPreview: Boolean = true,
@@ -386,7 +388,8 @@ data class InterfaceSettings(
     /** How thick the seek bar's track is. */
     val seekbarThickness: SeekbarThickness = SeekbarThickness.REGULAR,
     /** What marks the place on the seek bar. */
-    val seekbarThumb: SeekbarThumb = SeekbarThumb.DOT,
+    @SerialName("seekbarHandle")
+    val seekbarThumb: SeekbarThumb = SeekbarThumb.NONE,
     /** The played part's colour. */
     val seekbarColor: SeekbarColor = SeekbarColor.PLAIN,
     /** What the time on the right of the seek bar shows. */
@@ -394,7 +397,8 @@ data class InterfaceSettings(
     /** The audio details page: cards of format, routing and source, or the live pipeline. */
     val signalPathStyle: SignalPathStyle = SignalPathStyle.DETAILS,
     /** Small dots on the seek bar where the song's parts (verse, chorus) begin. */
-    val seekbarMarks: Boolean = true,
+    @SerialName("seekbarPartMarks")
+    val seekbarMarks: Boolean = false,
     /** A "Skip to chorus" button beside the source pill, when the lyrics mark the chorus. */
     val skipToChorus: Boolean = false,
     /** The pill under the title naming where the audio comes from and its quality. */
@@ -625,7 +629,7 @@ enum class MotionQuality(val label: String, val maxPx: Int, val maxBitrate: Int)
 @Serializable
 enum class SeekbarThickness(val label: String, val dp: Float) {
     THIN("Thin", 3f),
-    REGULAR("Regular", 5f),
+    REGULAR("Regular", 6f),
     THICK("Thick", 9f),
 }
 
