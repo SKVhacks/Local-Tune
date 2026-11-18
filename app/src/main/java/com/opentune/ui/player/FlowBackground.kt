@@ -96,7 +96,8 @@ private fun FlowShader(artworkUrl: String?, moving: Boolean, gentle: Boolean, mo
                 shader.setInputShader("cover1", nowShader)
                 shader.setFloatUniform("size", size.width, size.height)
                 shader.setFloatUniform("side", FIELD_PX.toFloat())
-                shader.setFloatUniform("t", time)
+                // Faster than the shader's own pace: at 1x the flow looked sluggish.
+                shader.setFloatUniform("t", time * FLOW_SPEED)
                 shader.setFloatUniform("fade", fade.value)
                 drawRect(brush)
             }
@@ -137,6 +138,7 @@ private fun soften(scaled: Bitmap): Bitmap {
 }
 
 private const val FIELD_PX = 48
+private const val FLOW_SPEED = 2.2f
 
 /**
  * Three large copies of the soft cover, each turning and drifting at its own

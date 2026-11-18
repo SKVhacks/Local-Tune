@@ -1,7 +1,5 @@
 package com.opentune.ui.player
 
-import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
@@ -62,23 +60,14 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
     val lossless = isHighestQuality(source, format)
     val phase = if (ui.reduceAnimation || !lossless) null else rememberInfiniteTransition(label = "quality light")
         .animateFloat(-0.15f, 1.15f, infiniteRepeatable(tween(2800, easing = LinearEasing)), label = "quality sweep")
-    // Apple Music's badge: just the tier ("Lossless", "Hi-Res Lossless") in a small
-    // frosted rounded box; the bit depth and rate are a tap away, on the signal path.
-    val tier = label.substringBefore(" · ")
-    TextButton(onClick = onClick, modifier = modifier.heightIn(min = 40.dp).semantics { contentDescription = "$label. Open signal path" },
-        colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurface.copy(alpha = 0.85f)),
-        contentPadding = PaddingValues(0.dp)) {
-      androidx.compose.foundation.layout.Row(
-        Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
-            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-      ) {
+    TextButton(onClick = onClick, modifier = modifier.widthIn(max = 280.dp).fillMaxWidth().heightIn(min = 40.dp).semantics { contentDescription = "$label. Open signal path" },
+        colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurfaceVariant),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
         // Lossless gets the waveform; a lossy stream the plain HQ mark (a headphone read as the output, not the quality).
         Icon(if (lossless) androidx.compose.material.icons.Icons.Rounded.GraphicEq else androidx.compose.material.icons.Icons.Rounded.HighQuality,
             null, Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
-        Text(tier, style = MaterialTheme.typography.labelLarge,
+        Text(label, style = MaterialTheme.typography.labelMedium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.drawWithCache {
                 onDrawWithContent {
@@ -98,7 +87,6 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
                 }
             },
             maxLines = 1, overflow = TextOverflow.Ellipsis)
-      }
     }
 }
 

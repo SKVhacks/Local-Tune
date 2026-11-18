@@ -207,7 +207,7 @@ private fun BloomPlay(isPlaying: Boolean, isBuffering: Boolean, animate: Boolean
             .semantics { if (isBuffering) stateDescription = "Buffering" },
         contentAlignment = Alignment.Center,
     ) {
-        PlayPauseGlyph(isPlaying, ink, animate, Modifier.size(52.dp).graphicsLayer { val s = 1f - 0.16f * press; scaleX = s; scaleY = s })
+        PlayPauseGlyph(isPlaying, ink, animate, Modifier.size(57.dp).graphicsLayer { val s = 1f - 0.16f * press; scaleX = s; scaleY = s })
     }
 }
 
@@ -605,8 +605,7 @@ private fun DrawScope.drawPlayPause(p: Float, color: Color) {
     val w = size.minDimension
     // A slight squeeze through the middle of the fold.
     val squeeze = 1f - 0.07f * sin(PI.toFloat() * p.coerceIn(0f, 1f))
-    // A thick round-joined outline in the same colour: corners as soft as Apple's.
-    val stroke = Stroke(width = w * 0.13f, join = StrokeJoin.Round)
+    val stroke = Stroke(width = w * 0.09f, join = StrokeJoin.Round)
     scale(squeeze, squeeze) {
         for ((from, to) in listOf(PLAY_LEFT to PAUSE_LEFT, PLAY_RIGHT to PAUSE_RIGHT)) {
             val path = Path()
@@ -655,7 +654,7 @@ private fun DrawScope.drawArrows(t: Float, color: Color) {
     val cy = size.height / 2f
     val start = (size.width - 2 * head) / 2f
     val shift = t * head
-    val stroke = Stroke(width = w * 0.1f, join = StrokeJoin.Round)
+    val stroke = Stroke(width = w * 0.06f, join = StrokeJoin.Round)
     fun arrow(left: Float, scale: Float, alpha: Float) {
         if (scale <= 0.01f || alpha <= 0.01f) return
         val hw = head * scale
