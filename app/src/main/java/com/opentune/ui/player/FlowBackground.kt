@@ -131,7 +131,7 @@ private fun soften(scaled: Bitmap): Bitmap {
     val out = scaled.copy(Bitmap.Config.ARGB_8888, true)
     val px = IntArray(FIELD_PX * FIELD_PX)
     out.getPixels(px, 0, FIELD_PX, 0, 0, FIELD_PX, FIELD_PX)
-    softenSquare(px, FIELD_PX, radius = 4, passes = 3)
+    softenSquare(px, FIELD_PX, radius = 2, passes = 3)
     out.setPixels(px, 0, FIELD_PX, 0, 0, FIELD_PX, FIELD_PX)
     return out
 }
@@ -139,10 +139,12 @@ private fun soften(scaled: Bitmap): Bitmap {
 private const val FIELD_PX = 48
 
 /**
- * Three copies of the soft cover, each turning and drifting at its own slow
- * pace over a gently warped space, blended by two broad moving masks; then
- * richer colour, bright covers brought down, the bottom darkened for the
- * controls, and a little dither so the gradients don't band.
+ * Three large copies of the soft cover, each turning and drifting at its own
+ * slow pace over a gently warped space. Two broad moving masks pick between
+ * them rather than averaging, so the cover's colours stay apart in big fields
+ * instead of going grey. Then the colour is made much richer, only very bright
+ * covers are brought down a little (Apple keeps it light), the bottom is a touch
+ * darker for the controls, and a little dither stops the gradients banding.
  */
 private const val FLOW_AGSL = """
 uniform shader cover0;
@@ -167,17 +169,17 @@ half3 pick(float2 p) {
 half4 main(float2 fc) {
     float2 uv = fc / size;
     float2 p = (fc - 0.5 * size) / max(size.x, size.y);
-    float2 w = p + 0.09 * float2(sin(p.y * 4.0 + t * 0.21), cos(p.x * 3.5 - t * 0.17));
-    half3 a = pick(turn(w, t * 0.045) * 0.95 + 0.5);
-    half3 b = pick(turn(w * 1.35 + float2(0.18, -0.12), -t * 0.06 + 1.7) + 0.5);
-    half3 c = pick(turn(w * 0.75 + float2(-0.2, 0.15), t * 0.032 + 3.1) + 0.5);
-    float m1 = 0.5 + 0.5 * sin(p.x * 3.0 + p.y * 2.2 + t * 0.13);
-    float m2 = 0.5 + 0.5 * cos(p.y * 3.1 - p.x * 2.4 - t * 0.11 + 1.3);
-    half3 col = mix(mix(a, b, half(smoothstep(0.2, 0.8, m1))), c, half(0.45 * smoothstep(0.3, 0.9, m2)));
+    float2 w = p + 0.07 * float2(sin(p.y * 3.0 + t * 0.21), cos(p.x * 2.6 - t * 0.17));
+    half3 a = pick(turn(w * 0.7, t * 0.045) + 0.5);
+    half3 b = pick(turn(w * 0.9 + float2(0.22, -0.15), -t * 0.06 + 1.7) + 0.5);
+    half3 c = pick(turn(w * 0.55 + float2(-0.25, 0.2), t * 0.032 + 3.1) + 0.5);
+    float m1 = 0.5 + 0.5 * sin(p.x * 2.4 + p.y * 1.8 + t * 0.13);
+    float m2 = 0.5 + 0.5 * cos(p.y * 2.5 - p.x * 2.0 - t * 0.11 + 1.3);
+    half3 col = mix(mix(a, b, half(smoothstep(0.35, 0.65, m1))), c, half(0.5 * smoothstep(0.4, 0.75, m2)));
     half l = dot(col, half3(0.2126, 0.7152, 0.0722));
-    col = clamp(mix(half3(l), col, half(1.35)), half3(0.0), half3(1.0));
+    col = clamp(mix(half3(l), col, half(1.7)), half3(0.0), half3(1.0));
     l = dot(col, half3(0.2126, 0.7152, 0.0722));
-    float shade = 0.85 * mix(1.0, 0.7, smoothstep(0.45, 0.9, float(l))) * mix(1.0, 0.6, smoothstep(0.3, 1.0, uv.y));
+    float shade = 0.93 * mix(1.0, 0.8, smoothstep(0.6, 0.95, float(l))) * mix(1.0, 0.82, smoothstep(0.45, 1.0, uv.y));
     col *= half(shade);
     float n = fract(sin(dot(fc, float2(12.9898, 78.233))) * 43758.5453);
     col += half((n - 0.5) / 255.0);
