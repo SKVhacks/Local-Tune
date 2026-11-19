@@ -764,11 +764,14 @@ fun PlayerLayout(
             }
             // The tall animated cover sits over the backdrop but outside the layer the glass
             // buttons bend, so its frames are never blurred again: see TallArtwork.
-            if (tallVideo != null && !flight.active) {
-                androidx.compose.runtime.key(tallVideo) {
+            // Kept loaded for the whole song, behind the lyrics and the queue too, only shown on
+            // the player itself: so it's back the instant the player is, with no load in between.
+            val songTall = state.canvasVideo.takeIf { hasTall }
+            if (songTall != null) {
+                androidx.compose.runtime.key(songTall) {
                     // It loops whether or not the song plays, as Apple Music's does; it still stops
                     // when the app is out of sight (TallArtwork follows the screen's lifecycle).
-                    TallArtwork(tallVideo, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize())
+                    TallArtwork(songTall, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize(), visible = tallVideo != null && !(flight.active && flight.toSmall))
                 }
             }
 

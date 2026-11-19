@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -47,12 +48,24 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
  */
 @OptIn(UnstableApi::class)
 @Composable
-internal fun TallArtwork(url: String, playing: Boolean, fallback: Color, modifier: Modifier = Modifier) {
+internal fun TallArtwork(
+    url: String,
+    playing: Boolean,
+    fallback: Color,
+    modifier: Modifier = Modifier,
+    /**
+     * Off while the lyrics or the queue are open, or the cover is flying between them.
+     * The video stays loaded then, paused on its frame and moved out of sight, so coming
+     * back it's on screen at once and plays on, instead of loading again for half a second.
+     */
+    visible: Boolean = true,
+) {
     val context = LocalContext.current
     val tones = rememberTallTones(url, fallback)
     val base = tones.first
     val deep = tones.second
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val visibleNow by androidx.compose.runtime.rememberUpdatedState(visible)
     var size by remember(url) { mutableStateOf(VideoSize.UNKNOWN) }
     var drawn by remember(url) { mutableStateOf(false) }
     val shown by animateFloatAsState(if (drawn) 1f else 0f, tween(600), label = "tallArtwork")
@@ -74,11 +87,11 @@ internal fun TallArtwork(url: String, playing: Boolean, fallback: Color, modifie
                 prepare()
             }
     }
-    LaunchedEffect(player, playing) { player.playWhenReady = playing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
+    LaunchedEffect(player, playing, visible) { player.playWhenReady = playing && visible && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
     DisposableEffect(player, lifecycle) {
         val watch = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> player.playWhenReady = playing
+                Lifecycle.Event.ON_START -> player.playWhenReady = playing && visibleNow
                 Lifecycle.Event.ON_STOP -> player.playWhenReady = false
                 else -> Unit
             }
@@ -90,10 +103,13 @@ internal fun TallArtwork(url: String, playing: Boolean, fallback: Color, modifie
         }
     }
     val aspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 3f / 4f
-    androidx.compose.foundation.layout.Column(modifier) {
+    androidx.compose.foundation.layout.Column(modifier.graphicsLayer { alpha = if (visible) 1f else 0f }) {
     Box(Modifier.fillMaxWidth().aspectRatio(aspect)) {
         AndroidView(
             factory = { c -> SurfaceView(c).also { player.setVideoSurfaceView(it) } },
+            // Hidden by moving it far off screen rather than removing it: its surface, and
+            // the frame on it, live on, where taking the view away would throw them out.
+            update = { v -> v.translationX = if (visible) 0f else -OFF_SCREEN_PX },
             modifier = Modifier.matchParentSize(),
         )
         // The lower part fades into the backdrop's colour, and a light scrim at the top keeps the status line readable.
@@ -182,3 +198,6 @@ private fun darkened(c: Int, most: Float): Int {
     val k = if (l > most) most / l else 1f
     return android.graphics.Color.rgb((r * k * 255).toInt(), (g * k * 255).toInt(), (b * k * 255).toInt())
 }
+
+/** Far enough off any screen to be out of sight. */
+private const val OFF_SCREEN_PX = 100_000f
