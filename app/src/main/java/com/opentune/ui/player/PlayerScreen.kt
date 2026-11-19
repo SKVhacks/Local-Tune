@@ -478,10 +478,20 @@ fun PlayerLayout(
     // The plain square cover sits at the top of its page, Apple-style, with the controls under it.
     val topCover = !docked && !landscape && !fullStyle &&
         style !in listOf(PlayerStyle.VINYL, PlayerStyle.CASSETTE, PlayerStyle.HALO, PlayerStyle.POLAROID, PlayerStyle.LYRICS_FIRST)
-    val controlsLift by androidx.compose.animation.core.animateFloatAsState(
-        if (topCover && pane == Pane.COVER) coverRoomPx else 0f,
-        tween(420, easing = FastOutSlowInEasing), label = "controlsLift",
+    // The spare room is shared out in four even gaps: above the cover, under the title,
+    // between the timeline and the play controls, and above the bottom row. [spread]
+    // eases it in and out as the cover page comes and goes.
+    val spread by androidx.compose.animation.core.animateFloatAsState(
+        if (topCover && pane == Pane.COVER) 1f else 0f,
+        tween(420, easing = FastOutSlowInEasing), label = "spread",
     )
+    val gap = coverRoomPx / 4f
+    // The cover page moves down a gap; the timeline block comes up two (all the room less
+    // the gaps above the cover and under the title); the controls go back down one more;
+    // the bottom row stays where it was.
+    val coverDrop = spread * gap
+    val controlsLift = spread * gap * 2f
+    val transportDrop = spread * gap
     val flies = !state.ui.reduceAnimation && !docked && !landscape &&
         style != PlayerStyle.VINYL && style != PlayerStyle.CASSETTE && style != PlayerStyle.HALO &&
         style != PlayerStyle.POLAROID && style != PlayerStyle.LYRICS_FIRST
@@ -1066,7 +1076,8 @@ fun PlayerLayout(
                                             bigTitle = it.boundsInRoot()
                                             // What's left of the page under the title: the controls are drawn up by it.
                                             val page = paneCoords?.takeIf { p -> p.isAttached }
-                                            if (topCover && page != null) coverRoomPx = (page.boundsInRoot().bottom - bigTitle!!.bottom).coerceAtLeast(0f)
+                                            // Measured as if the page weren't moved down, so the move doesn't feed back into it.
+                                            if (topCover && page != null) coverRoomPx = (page.boundsInRoot().bottom - (bigTitle!!.bottom - coverDrop)).coerceAtLeast(0f)
                                         }
                                     }
                                     .graphicsLayer { alpha = if (flight.active && bigTitle != null) 0f else 1f },
@@ -1176,6 +1187,7 @@ fun PlayerLayout(
                         Box(
                             Modifier.fillMaxSize().zIndex(if (outerPane == Pane.COVER) 1f else 0f)
                                 .padding(top = if (docked) 0.dp else if (topCover) 6.dp else STATUS_ROOM)
+                                .offset { androidx.compose.ui.unit.IntOffset(0, coverDrop.toInt()) }
                                 .graphicsLayer {
                                 val v = paneProgress()
                                 alpha = (1f - v * 1.6f).coerceIn(0f, 1f)
@@ -1255,6 +1267,7 @@ fun PlayerLayout(
                 if (state.ui.statsForNerds) {
                     Box(Modifier.clickable { showSignal = true }) { NerdStatsLine(state.audioFormat) }
                 }
+                Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, transportDrop.toInt()) }) {
                 PlayerControls(
                     isPlaying = state.isPlaying,
                     isBuffering = state.isBuffering,
@@ -1267,6 +1280,7 @@ fun PlayerLayout(
                     animate = !state.ui.reduceAnimation && state.loadingMessage?.startsWith("Offline") != true,
                     progress = { if (state.durationMs > 0) position() / state.durationMs.toFloat() else 0f },
                 )
+                }
                 if (!state.ui.hideVolumeBar && !minimal && roomy) VolumeBar(Modifier.padding(vertical = 4.dp))
                 Spacer(Modifier.height(10.dp))
                 // The bottom row (and the line under it) stay at the bottom while the rest is drawn up.
