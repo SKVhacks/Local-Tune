@@ -189,84 +189,99 @@ fun PlayerBackdrop(
     }
     // Under a tall animated cover (TallArtwork, drawn over this) the backdrop is one still
     // colour, the one its fade ends in: nothing here moves, so nothing is redrawn while it plays.
-    if (fullCover && tallArtwork != null) {
-        // The same still colours TallArtwork paints, so the glass buttons pick them up.
-        val (base, deep) = rememberTallTones(tallArtwork, scheme.surface)
-        Box(modifier.background(Brush.verticalGradient(0.55f to base, 1f to deep)))
-        return
-    }
-    Box(modifier.background(scheme.surface)) {
-        when (style) {
-            PlayerBackground.AMOLED -> Unit
-            PlayerBackground.FLOW -> FlowBackground(artworkUrl, animate && playing, gentle, Modifier.matchParentSize())
-            PlayerBackground.ECHO_GLOW -> EchoGlowBackground(animate && playing, Modifier.matchParentSize())
-            PlayerBackground.BLUR -> CoverBlur(artworkUrl, animate && playing, Modifier.matchParentSize())
-            PlayerBackground.MESH -> MeshGradient(artworkUrl, animate, Modifier.matchParentSize())
-            PlayerBackground.GRADIENT -> {
-                // Two tones: the cover's own colour at the top, deepening to
-                // the dark surface by the middle, where the controls sit.
-                val top = scheme.primaryContainer
-                Box(
-                    Modifier.matchParentSize().background(
-                        Brush.verticalGradient(
-                            0f to top,
-                            0.3f to lerp(top, scheme.surface, 0.35f),
-                            0.62f to lerp(top, scheme.surface, 0.85f),
-                            1f to scheme.surface,
+    // Under a tall animated cover (TallArtwork, drawn over this) the backdrop is its
+    // still colours, the ones its fade ends in, so the glass buttons pick them up and
+    // nothing here moves while it plays. Going to and from it, the two cross-fade
+    // rather than switching at once; once it's fully in, the usual backdrop isn't drawn.
+    val tallOn = fullCover && tallArtwork != null
+    var lastTall by remember { mutableStateOf<String?>(null) }
+    if (tallArtwork != null) lastTall = tallArtwork
+    val tallAlpha by androidx.compose.animation.core.animateFloatAsState(
+        if (tallOn) 1f else 0f, androidx.compose.animation.core.tween(500), label = "tallBackdrop",
+    )
+    val (tallBase, tallDeep) = rememberTallTones(lastTall, scheme.surface)
+    val styled: @Composable (Modifier, Boolean) -> Unit = { styleModifier, styleAnimate ->
+        Box(styleModifier.background(scheme.surface)) {
+            when (style) {
+                PlayerBackground.AMOLED -> Unit
+                PlayerBackground.FLOW -> FlowBackground(artworkUrl, styleAnimate && playing, gentle, Modifier.matchParentSize())
+                PlayerBackground.ECHO_GLOW -> EchoGlowBackground(styleAnimate && playing, Modifier.matchParentSize())
+                PlayerBackground.BLUR -> CoverBlur(artworkUrl, styleAnimate && playing, Modifier.matchParentSize())
+                PlayerBackground.MESH -> MeshGradient(artworkUrl, styleAnimate, Modifier.matchParentSize())
+                PlayerBackground.GRADIENT -> {
+                    // Two tones: the cover's own colour at the top, deepening to
+                    // the dark surface by the middle, where the controls sit.
+                    val top = scheme.primaryContainer
+                    Box(
+                        Modifier.matchParentSize().background(
+                            Brush.verticalGradient(
+                                0f to top,
+                                0.3f to lerp(top, scheme.surface, 0.35f),
+                                0.62f to lerp(top, scheme.surface, 0.85f),
+                                1f to scheme.surface,
+                            ),
                         ),
-                    ),
-                )
-                // Under the controls, a faint glow in the same colour.
-                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.matchParentSize()) {
-                    AmbientLights(
-                        listOf(scheme.primary, scheme.primaryContainer, scheme.inversePrimary),
-                        playing = playing,
-                        animate = animate,
-                        modifier = Modifier
+                    )
+                    // Under the controls, a faint glow in the same colour.
+                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.matchParentSize()) {
+                        AmbientLights(
+                            listOf(scheme.primary, scheme.primaryContainer, scheme.inversePrimary),
+                            playing = playing,
+                            animate = styleAnimate,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(maxHeight * 0.5f)
+                                .align(Alignment.BottomCenter)
+                                .graphicsLayer { alpha = 0.35f },
+                        )
+                    }
+                }
+            }
+            if (canvas != null) {
+                CanvasBackdrop(canvas, playing, titleTop, canvasBehindText, Modifier.matchParentSize())
+            } else if (fullCover) {
+                CoverSwap(CoverShown(artworkUrl, index, songId), change) { url, motion ->
+                    // The cover runs from the top down to just behind the title and
+                    // fades out there into whatever backdrop is below it, with a light
+                    // scrim at the top so the status line stays readable. It's never
+                    // shorter than it is wide; taller, it's cropped at the sides.
+                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { alpha = if (fullCoverVisible) 1f else 0f }) {
+                    val height = maxOf(maxWidth / 0.9f, (fullCoverBottom ?: 0.dp) + FULL_COVER_OVERLAP)
+                    val solid = (1f - FULL_COVER_FADE / height).coerceIn(0.4f, 0.8f)
+                    Box(
+                        Modifier
                             .fillMaxWidth()
-                            .height(maxHeight * 0.5f)
-                            .align(Alignment.BottomCenter)
-                            .graphicsLayer { alpha = 0.35f },
-                    )
+                            .height(height)
+                            .then(motion)
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    Brush.verticalGradient(solid to Color.Black, 1f to Color.Transparent),
+                                    blendMode = BlendMode.DstIn,
+                                )
+                            },
+                    ) {
+                        UpgradingArtwork(
+                            url.artworkAt(com.opentune.data.model.PLAYER_ART_PX),
+                            Modifier.matchParentSize(),
+                            shape = RectangleShape,
+                            imageModifier = Modifier.livingArt(playing, movingCover, artworkMotion),
+                        )
+                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.2f to Color.Transparent)))
+                    }
+                    }
                 }
             }
         }
-        if (canvas != null) {
-            CanvasBackdrop(canvas, playing, titleTop, canvasBehindText, Modifier.matchParentSize())
-        } else if (fullCover) {
-            CoverSwap(CoverShown(artworkUrl, index, songId), change) { url, motion ->
-                // The cover runs from the top down to just behind the title and
-                // fades out there into whatever backdrop is below it, with a light
-                // scrim at the top so the status line stays readable. It's never
-                // shorter than it is wide; taller, it's cropped at the sides.
-                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { alpha = if (fullCoverVisible) 1f else 0f }) {
-                val height = maxOf(maxWidth / 0.9f, (fullCoverBottom ?: 0.dp) + FULL_COVER_OVERLAP)
-                val solid = (1f - FULL_COVER_FADE / height).coerceIn(0.4f, 0.8f)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(height)
-                        .then(motion)
-                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                Brush.verticalGradient(solid to Color.Black, 1f to Color.Transparent),
-                                blendMode = BlendMode.DstIn,
-                            )
-                        },
-                ) {
-                    UpgradingArtwork(
-                        url.artworkAt(com.opentune.data.model.PLAYER_ART_PX),
-                        Modifier.matchParentSize(),
-                        shape = RectangleShape,
-                        imageModifier = Modifier.livingArt(playing, movingCover, artworkMotion),
-                    )
-                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.2f to Color.Transparent)))
-                }
-                }
-            }
-        }
+    }
+    Box(modifier) {
+        if (tallAlpha < 1f) styled(Modifier.matchParentSize(), animate && tallAlpha == 0f)
+        if (tallAlpha > 0f) Box(
+            Modifier.matchParentSize()
+                .graphicsLayer { alpha = tallAlpha }
+                .background(Brush.verticalGradient(0.55f to tallBase, 1f to tallDeep)),
+        )
     }
 }
 

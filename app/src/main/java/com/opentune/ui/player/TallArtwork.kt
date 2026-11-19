@@ -138,11 +138,15 @@ internal fun TallArtwork(
 @Composable
 internal fun rememberTallTones(url: String?, fallback: Color): Pair<Color, Color> {
     val context = LocalContext.current
-    val tones by androidx.compose.runtime.produceState(TONES[url], url) {
-        if (url == null || value != null) return@produceState
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tonesOf(context, url) }?.also { TONES[url] = it }
+    // A new video's colours are worked out afresh (the last one's stay until they're in),
+    // and every change of colour, song to song or from the fallback, is eased in.
+    val tones by androidx.compose.runtime.produceState<Pair<Int, Int>?>(url?.let { TONES[it] }, url) {
+        if (url == null) return@produceState
+        value = TONES[url] ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tonesOf(context, url) }?.also { TONES[url] = it }
     }
-    return tones?.let { Color(it.first) to Color(it.second) } ?: (fallback to fallback)
+    val base by androidx.compose.animation.animateColorAsState(tones?.let { Color(it.first) } ?: fallback, androidx.compose.animation.core.tween(600), label = "tallBase")
+    val deep by androidx.compose.animation.animateColorAsState(tones?.let { Color(it.second) } ?: fallback, androidx.compose.animation.core.tween(600), label = "tallDeep")
+    return base to deep
 }
 
 private val TONES = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
