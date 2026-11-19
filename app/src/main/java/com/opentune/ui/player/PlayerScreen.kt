@@ -766,7 +766,7 @@ fun PlayerLayout(
             // buttons bend, so its frames are never blurred again: see TallArtwork.
             if (tallVideo != null && !flight.active) {
                 androidx.compose.runtime.key(tallVideo) {
-                    TallArtwork(tallVideo, state.isPlaying, MaterialTheme.colorScheme.surface)
+                    TallArtwork(tallVideo, state.isPlaying, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize())
                 }
             }
 

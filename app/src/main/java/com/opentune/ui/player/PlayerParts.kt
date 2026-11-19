@@ -190,7 +190,9 @@ fun PlayerBackdrop(
     // Under a tall animated cover (TallArtwork, drawn over this) the backdrop is one still
     // colour, the one its fade ends in: nothing here moves, so nothing is redrawn while it plays.
     if (fullCover && tallArtwork != null) {
-        Box(modifier.background(scheme.surface))
+        // The same still colours TallArtwork paints, so the glass buttons pick them up.
+        val (base, deep) = rememberTallTones(tallArtwork, scheme.surface)
+        Box(modifier.background(Brush.verticalGradient(0.55f to base, 1f to deep)))
         return
     }
     Box(modifier.background(scheme.surface)) {

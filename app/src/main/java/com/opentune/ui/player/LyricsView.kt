@@ -366,6 +366,25 @@ private fun SyncedLyrics(
             found
         }
     }
+    // Lines before the lit one still being sung: a backing vocal (or the line's own last
+    // words) running past the next line's start. They stay lit, sweeping, until they
+    // end, as Apple Music keeps them, rather than going dark the moment the next starts.
+    val lingering by remember(rows) {
+        derivedStateOf {
+            val p = pos()
+            val current = activeRow
+            buildSet {
+                for (r in (current - 2).coerceAtLeast(0) until current) {
+                    val line = (rows[r] as? LyricRow.Line)?.line ?: continue
+                    val sungTo = maxOf(
+                        line.backgroundWords.maxOfOrNull { it.endMs } ?: 0L,
+                        if (line.wordSynced) line.words.maxOfOrNull { it.endMs } ?: 0L else 0L,
+                    )
+                    if (sungTo > p) add(r)
+                }
+            }
+        }
+    }
     // The line the view is centred on, whether a line or the gap after it is lit.
     val activeLine by remember(rows) { derivedStateOf { (rows.getOrNull(activeRow) as? LyricRow.Line)?.index ?: (rows.getOrNull(activeRow) as? LyricRow.Gap)?.gap?.afterIndex ?: -1 } }
     // Where the list is heading: the next row, from a moment before it's due. The glide
@@ -451,7 +470,7 @@ private fun SyncedLyrics(
                         LyricLineView(
                             line = line,
                             distance = i - activeLine,
-                            isActive = r == activeRow && !selecting,
+                            isActive = (r == activeRow || r in lingering) && !selecting,
                             animation = animation,
                             blurEnabled = blur && following,
                             position = clock,

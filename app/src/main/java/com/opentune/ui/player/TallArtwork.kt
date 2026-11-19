@@ -47,8 +47,11 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
  */
 @OptIn(UnstableApi::class)
 @Composable
-internal fun TallArtwork(url: String, playing: Boolean, base: Color, modifier: Modifier = Modifier) {
+internal fun TallArtwork(url: String, playing: Boolean, fallback: Color, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val tones = rememberTallTones(url, fallback)
+    val base = tones.first
+    val deep = tones.second
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var size by remember(url) { mutableStateOf(VideoSize.UNKNOWN) }
     var drawn by remember(url) { mutableStateOf(false) }
@@ -87,7 +90,8 @@ internal fun TallArtwork(url: String, playing: Boolean, base: Color, modifier: M
         }
     }
     val aspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 3f / 4f
-    Box(modifier.fillMaxWidth().aspectRatio(aspect)) {
+    androidx.compose.foundation.layout.Column(modifier) {
+    Box(Modifier.fillMaxWidth().aspectRatio(aspect)) {
         AndroidView(
             factory = { c -> SurfaceView(c).also { player.setVideoSurfaceView(it) } },
             modifier = Modifier.matchParentSize(),
@@ -107,4 +111,74 @@ internal fun TallArtwork(url: String, playing: Boolean, base: Color, modifier: M
         // Until the first frame, the backdrop's colour; then it lifts.
         if (shown < 1f) Box(Modifier.matchParentSize().background(base.copy(alpha = 1f - shown)))
     }
+    // Below the picture, its own colours: the edge it fades into, deepening to its main colour.
+    Box(Modifier.fillMaxWidth().weight(1f).background(Brush.verticalGradient(0f to base, 1f to deep)))
+    }
+}
+
+/**
+ * The two still colours under the tall cover, from its first frame: the colour
+ * along its bottom edge (its fade ends in it, so the seam can't show) and the
+ * picture's main colour, deeper, for the bottom of the screen. Both are kept
+ * dark enough for white text. Worked out once per video and remembered.
+ */
+@Composable
+internal fun rememberTallTones(url: String?, fallback: Color): Pair<Color, Color> {
+    val context = LocalContext.current
+    val tones by androidx.compose.runtime.produceState(TONES[url], url) {
+        if (url == null || value != null) return@produceState
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tonesOf(context, url) }?.also { TONES[url] = it }
+    }
+    return tones?.let { Color(it.first) to Color(it.second) } ?: (fallback to fallback)
+}
+
+private val TONES = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
+
+private fun tonesOf(context: android.content.Context, url: String): Pair<Int, Int>? = runCatching {
+    val r = android.media.MediaMetadataRetriever()
+    try {
+        r.setDataSource(context, android.net.Uri.parse(url))
+        val frame = (if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 48, 64)
+            else r.getFrameAtTime(0)?.let { android.graphics.Bitmap.createScaledBitmap(it, 48, 64, true) }) ?: return null
+        val w = frame.width
+        val h = frame.height
+        val px = IntArray(w * h).also { frame.getPixels(it, 0, w, 0, 0, w, h) }
+        // The bottom edge: the last eighth of the rows, averaged.
+        val edge = average(px.copyOfRange(w * (h - maxOf(1, h / 8)), w * h))
+        // The main colour: the busiest of twelve hue bands among the coloured pixels, averaged.
+        val bands = Array(12) { mutableListOf<Int>() }
+        val hsv = FloatArray(3)
+        for (c in px) {
+            android.graphics.Color.colorToHSV(c, hsv)
+            if (hsv[1] > 0.2f && hsv[2] > 0.15f) bands[(hsv[0] / 30f).toInt().coerceIn(0, 11)] += c
+        }
+        val busiest = bands.maxByOrNull { it.size }?.takeIf { it.size > px.size / 20 }
+        val main = busiest?.let { average(it.toIntArray()) } ?: edge
+        darkened(edge, 0.3f) to darkened(blend(main, edge, 0.35f), 0.17f)
+    } finally {
+        r.release()
+    }
+}.getOrNull()
+
+private fun average(px: IntArray): Int {
+    var r = 0L; var g = 0L; var b = 0L
+    for (c in px) { r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF }
+    val n = px.size.coerceAtLeast(1)
+    return android.graphics.Color.rgb((r / n).toInt(), (g / n).toInt(), (b / n).toInt())
+}
+
+private fun blend(a: Int, b: Int, t: Float): Int = android.graphics.Color.rgb(
+    (android.graphics.Color.red(a) * (1 - t) + android.graphics.Color.red(b) * t).toInt(),
+    (android.graphics.Color.green(a) * (1 - t) + android.graphics.Color.green(b) * t).toInt(),
+    (android.graphics.Color.blue(a) * (1 - t) + android.graphics.Color.blue(b) * t).toInt(),
+)
+
+/** The colour brought down, keeping its hue, until its brightness is at most [most] (0..1). */
+private fun darkened(c: Int, most: Float): Int {
+    val r = android.graphics.Color.red(c) / 255f
+    val g = android.graphics.Color.green(c) / 255f
+    val b = android.graphics.Color.blue(c) / 255f
+    val l = 0.2126f * r + 0.7152f * g + 0.0722f * b
+    val k = if (l > most) most / l else 1f
+    return android.graphics.Color.rgb((r * k * 255).toInt(), (g * k * 255).toInt(), (b * k * 255).toInt())
 }
