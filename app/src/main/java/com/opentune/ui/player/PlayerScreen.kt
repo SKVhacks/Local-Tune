@@ -769,7 +769,8 @@ fun PlayerLayout(
                     index = state.currentIndex,
                     songId = current.videoId,
                     canvas = null,
-                    tallArtwork = tallVideo,
+                    // Its still colours stay behind the flying video both ways, so its fade meets them.
+                    tallArtwork = tallVideo ?: state.canvasVideo.takeIf { hasTall && flight.active },
                     titleTop = with(LocalDensity.current) { bigTitle?.top?.takeIf { it > 0f }?.toDp() },
                     // Lyrics and the queue are read over the whole page, so the Canvas frosts top to bottom.
                     canvasBehindText = pane != Pane.COVER,
@@ -1314,6 +1315,7 @@ fun PlayerLayout(
                     TallFlight(
                         tallFrame, current.thumbnailUrl.artworkAt(ROW_ART_PX), from, to,
                         p = { flight.progress }, toSmall = flight.toSmall, origin = origin,
+                        base = rememberTallTones(state.canvasVideo, MaterialTheme.colorScheme.surface).first,
                         modifier = Modifier.testTag("pane-cover-flight"),
                     )
                 } else if (from != null && to != null) {
