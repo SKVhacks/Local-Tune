@@ -1032,6 +1032,8 @@ fun PlayerLayout(
                                     else ->
                                         ArtworkPane(
                                             current, state.isPlaying, onSwipeNext = actions.next, onSwipePrevious = actions.previous,
+                                            // A touch bigger than the page's margins allow: 10dp wider (and taller) in all.
+                                            modifier = if (!docked && !landscape) Modifier.widenBy(COVER_WIDEN) else Modifier,
                                             moving = state.ui.movingCover && !state.ui.reduceAnimation,
                                             artworkMotion = artworkMotion,
                                             change = if (state.ui.reduceAnimation) com.opentune.data.settings.CoverChange.FADE else state.ui.coverChange,
@@ -1857,7 +1859,7 @@ internal class PaneFlight {
 data class CoverMotion(val url: String, val fallbackUrl: String? = null)
 
 /** How far the cover reaches past each side of the page's margin. */
-private val COVER_WIDEN = 18.dp
+private val COVER_WIDEN = 5.dp
 
 /** How far in from the page's sides the bottom row's buttons sit. */
 private val BOTTOM_ROW_INSET = 32.dp
