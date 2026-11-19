@@ -16,6 +16,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -59,6 +63,8 @@ internal fun TallArtwork(
      * back it's on screen at once and plays on, instead of loading again for half a second.
      */
     visible: Boolean = true,
+    /** Lets the player take the frame on screen for the shrink into the lyrics header and back. */
+    handle: TallHandle? = null,
 ) {
     val context = LocalContext.current
     val tones = rememberTallTones(url, fallback)
@@ -103,10 +109,11 @@ internal fun TallArtwork(
         }
     }
     val aspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 3f / 4f
+    handle?.aspect = aspect
     androidx.compose.foundation.layout.Column(modifier.graphicsLayer { alpha = if (visible) 1f else 0f }) {
     Box(Modifier.fillMaxWidth().aspectRatio(aspect)) {
         AndroidView(
-            factory = { c -> SurfaceView(c).also { player.setVideoSurfaceView(it) } },
+            factory = { c -> SurfaceView(c).also { player.setVideoSurfaceView(it); handle?.view = it } },
             // Hidden by moving it far off screen rather than removing it: its surface, and
             // the frame on it, live on, where taking the view away would throw them out.
             update = { v -> v.translationX = if (visible) 0f else -OFF_SCREEN_PX },
@@ -201,3 +208,76 @@ private fun darkened(c: Int, most: Float): Int {
 
 /** Far enough off any screen to be out of sight. */
 private const val OFF_SCREEN_PX = 100_000f
+
+/**
+ * The player's hold on the tall cover's video: its shape, and the frame on its surface,
+ * taken when the player shrinks it into the lyrics header (or grows it back), so the
+ * flying cover is the very picture on screen rather than the still cover art.
+ */
+internal class TallHandle {
+    var view: SurfaceView? = null
+    var aspect by androidx.compose.runtime.mutableFloatStateOf(3f / 4f)
+    var frame by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private set
+
+    /** For a shrink: the last frame taken is old now, so none flies until the new one is in. */
+    fun retake() { frame = null; capture() }
+
+    /** Copies the frame on the surface. Works while it's moved off screen too: the surface keeps it. */
+    fun capture() {
+        val v = view ?: return
+        if (v.width <= 0 || v.height <= 0 || !v.holder.surface.isValid) return
+        val bitmap = android.graphics.Bitmap.createBitmap(v.width / 2, v.height / 2, android.graphics.Bitmap.Config.ARGB_8888)
+        runCatching {
+            android.view.PixelCopy.request(v, bitmap, { result ->
+                if (result == android.view.PixelCopy.SUCCESS) frame = bitmap.asImageBitmap()
+            }, android.os.Handler(android.os.Looper.getMainLooper()))
+        }
+    }
+}
+
+/**
+ * The tall cover flying between the full player, where it's the width of the screen at
+ * its own shape, and the lyrics header's small square: the frame that was on screen,
+ * cropped to the box as it changes shape, its corners rounding as it shrinks, turning
+ * into the still cover art over the last part of the way, as Apple Music does it.
+ */
+@Composable
+internal fun TallFlight(
+    frame: androidx.compose.ui.graphics.ImageBitmap,
+    cover: String?,
+    from: androidx.compose.ui.geometry.Rect,
+    to: androidx.compose.ui.geometry.Rect,
+    p: () -> Float,
+    toSmall: Boolean,
+    origin: androidx.compose.ui.geometry.Offset,
+    modifier: Modifier = Modifier,
+) {
+    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
+    fun smallness() = p().coerceIn(0f, 1f).let { if (toSmall) it else 1f - it }
+    Box(
+        modifier
+            .layout { measurable, constraints ->
+                val t = p().coerceIn(0f, 1f)
+                val r = androidx.compose.ui.geometry.lerp(from, to, t)
+                val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(r.width.toInt().coerceAtLeast(1), r.height.toInt().coerceAtLeast(1)))
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.place((r.left - origin.x).toInt(), (r.top - origin.y).toInt())
+                }
+            }
+            .graphicsLayer {
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(corner * smallness())
+                clip = true
+            },
+    ) {
+        androidx.compose.foundation.Image(frame, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        coil3.compose.AsyncImage(
+            cover, null,
+            Modifier.fillMaxSize().graphicsLayer {
+                val s = smallness()
+                alpha = ((s - 0.55f) / 0.45f).coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
+            },
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
+    }
+}

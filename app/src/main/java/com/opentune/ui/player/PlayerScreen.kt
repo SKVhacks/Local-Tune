@@ -457,6 +457,7 @@ fun PlayerLayout(
     // A song with a tall animated cover in its folder gets Apple's layout: the video edge
     // to edge from the top, fading out behind the title, in any player style.
     val hasTall = state.canvasVideo != null && !landscape && !amoled
+    val tallHandle = remember(state.canvasVideo) { TallHandle() }
     // Full-screen cover only fits the layouts built around a plain square cover.
     val fullCover = !landscape && !amoled && pane == Pane.COVER &&
         (hasTall || ((apple || state.ui.fullScreenCover) && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)))
@@ -520,6 +521,13 @@ fun PlayerLayout(
      * is how the backdrop crops it, so the flight starts and ends exactly over it.
      */
     fun bigCover(): androidx.compose.ui.geometry.Rect? {
+        // The tall cover: the width of the player from its top, at the video's own shape.
+        if (hasTall) {
+            val c = playerCoords?.takeIf { it.isAttached } ?: return null
+            val at = c.positionInRoot()
+            val w = c.size.width.toFloat()
+            return androidx.compose.ui.geometry.Rect(at.x, at.y, at.x + w, at.y + w / tallHandle.aspect)
+        }
         if (!fullStyle) return (com.opentune.ui.components.PlayerMorph.playerCover
             ?: com.opentune.ui.components.PlayerMorph.lastPlayerCover)?.let(com.opentune.ui.components.PlayerMorph::scaled)
         val c = playerCoords?.takeIf { it.isAttached } ?: return null
@@ -529,6 +537,8 @@ fun PlayerLayout(
         return androidx.compose.ui.geometry.Rect(at.x + (w - h) / 2f, at.y, at.x + (w + h) / 2f, at.y + h)
     }
     fun expandCover() {
+        // Growing back: the paused video's frame, taken now if there's none yet.
+        if (hasTall && tallHandle.frame == null) tallHandle.capture()
         liftSettle?.cancel()
         coverLift = 0f
         returnPane = pane.name
@@ -539,6 +549,8 @@ fun PlayerLayout(
     // Before the lists have ever been shown, where the header's cover will be is worked out.
     fun knowHeader() { if (flight.lastSmall == null) flight.lastSmall = headerHome() }
     fun collapseCover(fly: Boolean = true) {
+        // The tall cover's frame on screen now is what shrinks (TallFlight).
+        if (hasTall && !flight.following) tallHandle.retake()
         val back = returnPane?.let { runCatching { Pane.valueOf(it) }.getOrNull() }?.takeIf { it != Pane.COVER } ?: Pane.QUEUE
         val from = bigCover()
         smallCover = null
@@ -610,6 +622,7 @@ fun PlayerLayout(
             // Only from the full cover as it is now: a position left from an earlier
             // flight (no bigger than the small one) made the cover leap to the
             // header at the first touch and freeze there.
+            if (hasTall) tallHandle.retake()
             flight.follow(big, home, (-upPull / travel).coerceIn(0f, 1f), travel)
         }
     }
@@ -771,7 +784,14 @@ fun PlayerLayout(
                 androidx.compose.runtime.key(songTall) {
                     // It loops whether or not the song plays, as Apple Music's does; it still stops
                     // when the app is out of sight (TallArtwork follows the screen's lifecycle).
-                    TallArtwork(songTall, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize(), visible = tallVideo != null && !(flight.active && flight.toSmall))
+                    // Hidden while it flies: the flight draws it. Shrinking, it stays until its frame
+                    // has been taken, so there's no moment without it; growing back, it's shown on
+                    // landing, still paused on that same frame, and plays on.
+                    TallArtwork(
+                        songTall, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize(),
+                        visible = if (flight.active) flight.toSmall && tallHandle.frame == null else tallVideo != null,
+                        handle = tallHandle,
+                    )
                 }
             }
 
@@ -1286,7 +1306,17 @@ fun PlayerLayout(
                 // Before the header is back (a swipe still under the finger), where it was last.
                 val to = flight.target(smallCover, bigCover())
                 val origin = playerCoords?.takeIf { it.isAttached }?.positionInRoot() ?: androidx.compose.ui.geometry.Offset.Zero
-                if (from != null && to != null) {
+                val tallFrame = tallHandle.frame.takeIf { hasTall }
+                // The tall cover's frame not taken yet (a moment, at the start of a shrink):
+                // the video itself is still on screen, so nothing is drawn over it.
+                if (hasTall && tallFrame == null && flight.toSmall) Unit
+                else if (from != null && to != null && tallFrame != null) {
+                    TallFlight(
+                        tallFrame, current.thumbnailUrl.artworkAt(ROW_ART_PX), from, to,
+                        p = { flight.progress }, toSmall = flight.toSmall, origin = origin,
+                        modifier = Modifier.testTag("pane-cover-flight"),
+                    )
+                } else if (from != null && to != null) {
                     // Progress is read in the layer only: the finger or the runner, frame by frame.
                     com.opentune.ui.components.MorphBox(
                         current.thumbnailUrl.artworkAt(com.opentune.data.model.PLAYER_ART_PX),

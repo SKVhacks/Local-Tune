@@ -151,17 +151,12 @@ fun SongMenuSheet(
                     Text(song.artist, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            // The four things done most often, one tap each.
+            // The things done most often, one tap each.
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 QuickAction(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Liked" else "Like", active = isLiked) {
                     LibraryStore.setLiked(song, !isLiked)
                 }
                 QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Playlist", active = false) { pickPlaylist = true }
-                QuickAction(Icons.Rounded.Share, "Share", active = false) {
-                    // The song's file itself, to send to a friend or another app.
-                    shareFile(context, song)
-                    close()
-                }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         },
@@ -194,24 +189,6 @@ fun SongMenuSheet(
             }
             if (Ringtones.canUse(song)) {
                 MenuRow(Icons.Rounded.NotificationsActive, "Set as ringtone") { ringtone = true }
-            }
-            if (actions != null) MenuRow(Icons.Rounded.ThumbDownOffAlt, "Not for me (dislike)") { close(); actions.dislike(song) }
-            // Only suggestions are affected: the song still plays when picked, and stays in playlists.
-            if (actions != null) {
-                if (hidden.hidesSong(song.videoId)) {
-                    MenuRow(Icons.Rounded.Visibility, "Suggest this song again") { LibraryStore.unhideSong(song.videoId); close() }
-                } else {
-                    MenuRow(Icons.Rounded.VisibilityOff, "Not interested") { close(); actions.notInterested(song) }
-                }
-                val artist = HiddenList.mainArtist(song.artist)
-                if (artist.isNotBlank()) {
-                    val entry = hidden.artists.firstOrNull { it.key == HiddenList.normalize(artist) }
-                    if (entry != null) {
-                        MenuRow(Icons.Rounded.Person, "Suggest $artist again") { LibraryStore.unhideArtist(entry.key); close() }
-                    } else {
-                        MenuRow(Icons.Rounded.PersonOff, "Don't play $artist") { close(); actions.dontPlayArtist(song) }
-                    }
-                }
             }
             end?.invoke(this, close)
             Spacer(Modifier.size(12.dp))
