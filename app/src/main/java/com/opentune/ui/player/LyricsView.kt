@@ -378,11 +378,11 @@ private fun SyncedLyrics(
             if (current < 0) return@derivedStateOf emptySet()
             val recent = (current - 2).coerceAtLeast(0)..current
             val singing = recent.filter { r ->
-                val line = (rows[r] as? LyricRow.Line)?.line ?: return@filter r == current
+                val line = (rows.getOrNull(r) as? LyricRow.Line)?.line ?: return@filter r == current
                 if (r == current) !line.wordSynced || sungTo(line) > p else sungTo(line) > p
             }.toSet()
             if (singing.isNotEmpty()) singing
-            else setOf(recent.filter { rows[it] is LyricRow.Line }.maxByOrNull { sungTo((rows[it] as LyricRow.Line).line) } ?: current)
+            else setOf(recent.filter { rows.getOrNull(it) is LyricRow.Line }.maxByOrNull { sungTo((rows[it] as LyricRow.Line).line) } ?: current)
         }
     }
     // The row the view keeps in place: the earliest lit line that goes on well past
@@ -394,7 +394,7 @@ private fun SyncedLyrics(
         derivedStateOf {
             val current = activeRow
             val start = rows.getOrNull(current)?.startMs ?: return@derivedStateOf current
-            litRows.sorted().firstOrNull { r -> r == current || holdsOver(rows[r], start) } ?: current
+            litRows.sorted().firstOrNull { r -> r == current || holdsOver(rows.getOrNull(r), start) } ?: current
         }
     }
     // The line the view is centred on, whether a line or the gap after it is lit.
@@ -408,7 +408,7 @@ private fun SyncedLyrics(
             // Held on a line still being sung while a later one is lit too, and not
             // gliding on to a short line that will start inside this one.
             if (current < activeRow) current
-            else if (next != null && holdsOver(rows[current], next.startMs)) current
+            else if (next != null && holdsOver(rows.getOrNull(current), next.startMs)) current
             else if (next == null) current
             else if (pos() + LINE_LEAD_MS + glideMs(rows, current) >= next.startMs) current + 1
             else current
@@ -1166,7 +1166,7 @@ private fun sungTo(line: LyricLine): Long = maxOf(
 )
 
 /** True when [row], a line, is still being sung more than [HOLD_MS] after a later line starts at [laterStart]. */
-private fun holdsOver(row: LyricRow, laterStart: Long): Boolean {
+private fun holdsOver(row: LyricRow?, laterStart: Long): Boolean {
     val line = (row as? LyricRow.Line)?.line ?: return false
     return sungTo(line) - laterStart > HOLD_MS
 }
