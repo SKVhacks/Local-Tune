@@ -1032,6 +1032,8 @@ fun PlayerLayout(
                                     else ->
                                         ArtworkPane(
                                             current, state.isPlaying, onSwipeNext = actions.next, onSwipePrevious = actions.previous,
+                                            // Nearly edge to edge: past the page's 24dp side margins to 6dp from the screen.
+                                            modifier = if (!docked && !landscape) Modifier.widenBy(COVER_WIDEN) else Modifier,
                                             moving = state.ui.movingCover && !state.ui.reduceAnimation,
                                             artworkMotion = artworkMotion,
                                             change = if (state.ui.reduceAnimation) com.opentune.data.settings.CoverChange.FADE else state.ui.coverChange,
@@ -1250,7 +1252,8 @@ fun PlayerLayout(
                 )
                 if (!state.ui.hideVolumeBar && !minimal && roomy) VolumeBar(Modifier.padding(vertical = 4.dp))
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // Drawn in toward the middle, not out at the edges.
+                Row(Modifier.fillMaxWidth().padding(horizontal = BOTTOM_ROW_INSET), verticalAlignment = Alignment.CenterVertically) {
                     GlassToggle(PlayerIcons.Lyrics, "Lyrics", pane == Pane.LYRICS, { toggle(Pane.LYRICS) })
                     // One pill that morphs between sleep and output, and the queue's modes.
                     val inQueueNow = pane == Pane.QUEUE
@@ -1853,3 +1856,18 @@ internal class PaneFlight {
 
 /** A looping clip shown over a cover: kept for the player's layout, though songs on the phone have none. */
 data class CoverMotion(val url: String, val fallbackUrl: String? = null)
+
+/** How far the cover reaches past each side of the page's margin. */
+private val COVER_WIDEN = 18.dp
+
+/** How far in from the page's sides the bottom row's buttons sit. */
+private val BOTTOM_ROW_INSET = 32.dp
+
+/** Lays the content out [by] wider on each side than the room it's given, centred over it. */
+private fun Modifier.widenBy(by: androidx.compose.ui.unit.Dp) = layout { measurable, constraints ->
+    val extra = by.roundToPx() * 2
+    val wide = if (constraints.hasBoundedWidth) constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra) else constraints
+    val placeable = measurable.measure(wide)
+    val width = (placeable.width - extra).coerceAtLeast(0)
+    layout(width, placeable.height) { placeable.place(-extra / 2, 0) }
+}

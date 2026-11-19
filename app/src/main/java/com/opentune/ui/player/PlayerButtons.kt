@@ -102,7 +102,12 @@ fun PlayerControls(
     Row(
         modifier.fillMaxWidth().height(86.dp),
         // Capsule is a tight cluster; the bare designs spread across the row.
-        horizontalArrangement = if (style == ControlStyle.CAPSULE || style == ControlStyle.MORPH) Arrangement.Center else Arrangement.SpaceEvenly,
+        // Bare glyphs (Bloom) go out to the page's edges, in line with the title; the rest spread evenly.
+        horizontalArrangement = when (style) {
+            ControlStyle.CAPSULE, ControlStyle.MORPH -> Arrangement.Center
+            ControlStyle.BLOOM -> Arrangement.SpaceBetween
+            else -> Arrangement.SpaceEvenly
+        },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when (style) {
