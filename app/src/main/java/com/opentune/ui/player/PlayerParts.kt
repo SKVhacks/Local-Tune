@@ -1018,7 +1018,16 @@ fun SeekBar(
                 val sample = if (durationMs > 0) "-" + formatTime(durationMs) else "--:--"
                 with(density) { (measurer.measure(sample, timeStyle).size.width + 8.dp.roundToPx()).toDp() }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            // Pulled up under the line: the bar's 48dp touch area and the quality button's height
+            // left a wide empty band between the line and the times. Everything below follows it up.
+            Row(
+                Modifier.fillMaxWidth().layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    val pull = TIME_ROW_PULL.roundToPx()
+                    layout(placeable.width, (placeable.height - pull).coerceAtLeast(0)) { placeable.place(0, -pull) }
+                },
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(if (loading) "--:--" else formatTime(elapsedSeconds * 1000), modifier = Modifier.width(timeWidth),
                     style = timeStyle, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 // Keep this button below the seek target, including its minimum touch bounds.
@@ -1536,3 +1545,6 @@ internal fun seekStepMs(key: Key, durationMs: Long): Long? {
         else -> null
     }
 }
+
+/** How far the time row is drawn up under the seek bar's line. */
+private val TIME_ROW_PULL = 22.dp
