@@ -120,7 +120,17 @@ internal fun TallArtwork(
             modifier = Modifier.matchParentSize(),
         )
         // The lower part fades into the backdrop's colour, and a light scrim at the top keeps the status line readable.
-        Box(Modifier.matchParentSize().background(tallFade(base)))
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.3f),
+                    0.15f to Color.Transparent,
+                    0.58f to Color.Transparent,
+                    0.8f to base.copy(alpha = 0.75f),
+                    1f to base,
+                ),
+            ),
+        )
         // Until the first frame, the backdrop's colour; then it lifts.
         if (shown < 1f) Box(Modifier.matchParentSize().background(base.copy(alpha = 1f - shown)))
     }
@@ -199,15 +209,6 @@ private fun darkened(c: Int, most: Float): Int {
 /** Far enough off any screen to be out of sight. */
 private const val OFF_SCREEN_PX = 100_000f
 
-/** The tall cover's own fade: a light scrim at the top, its lower part going into [base]. */
-internal fun tallFade(base: Color) = Brush.verticalGradient(
-    0f to Color.Black.copy(alpha = 0.3f),
-    0.15f to Color.Transparent,
-    0.58f to Color.Transparent,
-    0.8f to base.copy(alpha = 0.75f),
-    1f to base,
-)
-
 /**
  * The player's hold on the tall cover's video: its shape, and the frame on its surface,
  * taken when the player shrinks it into the lyrics header (or grows it back), so the
@@ -250,8 +251,6 @@ internal fun TallFlight(
     p: () -> Float,
     toSmall: Boolean,
     origin: androidx.compose.ui.geometry.Offset,
-    /** The colour the player's video fades into, so the flying one fades the same way. */
-    base: Color,
     modifier: Modifier = Modifier,
 ) {
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
@@ -272,9 +271,6 @@ internal fun TallFlight(
             },
     ) {
         androidx.compose.foundation.Image(frame, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-        // The same fade as on the player, whole at full size and gone by the small square, so
-        // neither end of the flight shows a hard edge where the picture meets the backdrop.
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - smallness() }.background(tallFade(base)))
         coil3.compose.AsyncImage(
             cover, null,
             Modifier.fillMaxSize().graphicsLayer {
