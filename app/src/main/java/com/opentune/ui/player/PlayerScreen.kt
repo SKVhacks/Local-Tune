@@ -1265,12 +1265,11 @@ fun PlayerLayout(
                             Row(Modifier.height(52.dp).clip(RoundedCornerShape(30.dp)), verticalAlignment = Alignment.CenterVertically) {
                                 // Each half is the button: a press fills the half, not a circle round the icon.
                                 // Apple Music's has where it's playing, then who's listening with you.
-                                if (!apple) {
-                                    PillButton(Icons.Rounded.Bedtime, "Sleep timer", sleepLabel != null, { showSleep = true }, enabled = enabled)
-                                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.16f)))
-                                }
+                                // The sleep timer lives in the more menu; here, only where it's playing.
                                 PillButton(
-                                    outputRoute.icon,
+                                    // The phone's own speaker shows the stream mark; headphones, Bluetooth
+                                    // and casting keep their own icons.
+                                    if (outputRoute == OutputRoute.PHONE) Icons.Rounded.Cast else outputRoute.icon,
                                     "Audio output",
                                     // Headphones only change the icon; lit up is for casting, a session to notice.
                                     outputRoute == OutputRoute.CAST,
