@@ -890,7 +890,8 @@ fun PlayerLayout(
                     AnimatedContent(sound.isDefault, label = "remixPill") { normal ->
                         if (false) {
                         } else if (normal) {
-                            if (!state.ui.hideSongStatus) SongStatus(state.source)
+                            // The "Now playing" / "Playing from" line is left out: the player is cleaner without it.
+                            Unit
                         } else {
                             AssistChip(
                                 onClick = { showRemix = true },
@@ -907,9 +908,9 @@ fun PlayerLayout(
                 }
                 // Grab handle. Docked, there's nothing to pull down: a button at the end folds the pane away.
                 Column(Modifier.fillMaxWidth().padding(top = if (docked) 0.dp else 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    // The handle isn't drawn, but its place still takes a tap to fold the player away.
                     if (!docked) Box(
                         Modifier.size(width = 40.dp, height = 5.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
                             .clickable(onClick = actions.collapse),
                     )
                     // Docked, the line stays in the header beside the hide button; otherwise it sits
@@ -1368,29 +1369,12 @@ fun PlayerLayout(
                     MenuRow(Icons.Rounded.HighQuality, "Track details") { close(); showDetails = true }
                     MenuRow(Icons.Rounded.GraphicEq, "Signal path") { close(); showSignal = true }
                     MenuRow(Icons.Rounded.Bedtime, sleepLabel ?: "Sleep timer") { close(); showSleep = true }
-                    MenuRow(Icons.Rounded.Tune, "Lyrics offset") { close(); showOffset = true }
                     MenuRow(Icons.Rounded.Lyrics, if (state.ui.lyricsPreview) "Hide lyrics preview" else "Show lyrics preview") {
                         close()
                         AppSettings.updateUi { it.copy(lyricsPreview = !it.lyricsPreview) }
                     }
-                    if (com.opentune.data.lyrics.Romanizer.available) {
-                        MenuRow(Icons.Rounded.Translate, if (lyricsSettings.romanize) "Hide romanized lyrics" else "Show romanized lyrics") {
-                            close()
-                            AppSettings.updateLyrics { it.copy(romanize = !it.romanize) }
-                        }
-                    }
                     MenuRow(Icons.Rounded.Equalizer, "Equalizer") { close(); actions.openEqualizer() }
                     MenuRow(Icons.Rounded.GraphicEq, "Remix") { close(); showRemix = true }
-                },
-                end = { close ->
-                    MenuRow(Icons.Rounded.BugReport, "Copy log") {
-                        close()
-                        scope.launch {
-                            val log = LogExport.recent()
-                            clipboard.setPrimaryClip(ClipData.newPlainText("OpenTune log", log))
-                            com.opentune.data.Pills.done("Log copied", context)
-                        }
-                    }
                 },
             )
         }

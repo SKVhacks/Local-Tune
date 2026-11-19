@@ -187,9 +187,6 @@ fun SongMenuSheet(
                 top?.invoke(this, close)
                 tools?.invoke(this, close)
             }
-            if (Ringtones.canUse(song)) {
-                MenuRow(Icons.Rounded.NotificationsActive, "Set as ringtone") { ringtone = true }
-            }
             end?.invoke(this, close)
             Spacer(Modifier.size(12.dp))
         }
