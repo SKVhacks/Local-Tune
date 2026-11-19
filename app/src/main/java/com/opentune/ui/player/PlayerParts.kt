@@ -187,6 +187,12 @@ fun PlayerBackdrop(
         Box(modifier.background(Color.Black))
         return
     }
+    // Under a tall animated cover (TallArtwork, drawn over this) the backdrop is one still
+    // colour, the one its fade ends in: nothing here moves, so nothing is redrawn while it plays.
+    if (fullCover && tallArtwork != null) {
+        Box(modifier.background(scheme.surface))
+        return
+    }
     Box(modifier.background(scheme.surface)) {
         when (style) {
             PlayerBackground.AMOLED -> Unit
@@ -225,25 +231,6 @@ fun PlayerBackdrop(
         }
         if (canvas != null) {
             CanvasBackdrop(canvas, playing, titleTop, canvasBehindText, Modifier.matchParentSize())
-        } else if (fullCover && tallArtwork != null) {
-            // Apple's tall cover: the whole picture across the screen's width at its own
-            // shape, from the very top, its lower part fading into the backdrop.
-            Box(Modifier.fillMaxWidth().graphicsLayer { alpha = if (fullCoverVisible) 1f else 0f }) {
-                androidx.compose.runtime.key(tallArtwork) {
-                    LoopingVideo(
-                        tallArtwork, playing,
-                        Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(Brush.verticalGradient(0.6f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
-                            },
-                        maxPx = 2160, maxBitrate = 20_000_000, alignTop = true,
-                    )
-                }
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.15f to Color.Transparent)))
-            }
         } else if (fullCover) {
             CoverSwap(CoverShown(artworkUrl, index, songId), change) { url, motion ->
                 // The cover runs from the top down to just behind the title and

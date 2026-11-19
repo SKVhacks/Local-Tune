@@ -762,6 +762,13 @@ fun PlayerLayout(
                     canvasBehindText = pane != Pane.COVER,
                 )
             }
+            // The tall animated cover sits over the backdrop but outside the layer the glass
+            // buttons bend, so its frames are never blurred again: see TallArtwork.
+            if (tallVideo != null && !flight.active) {
+                androidx.compose.runtime.key(tallVideo) {
+                    TallArtwork(tallVideo, state.isPlaying, MaterialTheme.colorScheme.surface)
+                }
+            }
 
 
             // Behind the lyrics, the cover's colours drift slowly.
