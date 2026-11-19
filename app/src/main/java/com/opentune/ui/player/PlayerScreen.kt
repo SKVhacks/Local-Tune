@@ -1032,8 +1032,6 @@ fun PlayerLayout(
                                     else ->
                                         ArtworkPane(
                                             current, state.isPlaying, onSwipeNext = actions.next, onSwipePrevious = actions.previous,
-                                            // Nearly edge to edge: past the page's 24dp side margins to 6dp from the screen.
-                                            modifier = if (!docked && !landscape) Modifier.widenBy(COVER_WIDEN) else Modifier,
                                             moving = state.ui.movingCover && !state.ui.reduceAnimation,
                                             artworkMotion = artworkMotion,
                                             change = if (state.ui.reduceAnimation) com.opentune.data.settings.CoverChange.FADE else state.ui.coverChange,
@@ -1262,7 +1260,8 @@ fun PlayerLayout(
                         animate = !state.ui.reduceAnimation,
                         // Nothing behind the output button: just the icon.
                         firstFill = Color.Transparent,
-                        secondFill = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        // A light frost like the other buttons, so it takes the song's colours rather than a fixed grey.
+                        secondFill = Color.White.copy(alpha = 0.14f),
                         modifier = Modifier.weight(1f),
                         first = { enabled ->
                             // Its two halves split by a hairline; the fill is the morphing one behind.
