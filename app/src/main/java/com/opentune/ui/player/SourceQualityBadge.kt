@@ -1,6 +1,5 @@
 package com.opentune.ui.player
 
-import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
@@ -66,13 +65,12 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
         colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurfaceVariant),
         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
         // Lossless gets the waveform; a lossy stream the plain HQ mark (a headphone read as the output, not the quality).
-        Icon(when {
-                dolby != null -> androidx.compose.material.icons.Icons.Rounded.SurroundSound
-                lossless -> androidx.compose.material.icons.Icons.Rounded.GraphicEq
-                else -> androidx.compose.material.icons.Icons.Rounded.HighQuality
-            },
-            null, Modifier.size(16.dp))
-        Spacer(Modifier.width(5.dp))
+        // Dolby formats are named in plain text alone, with no mark beside them.
+        if (dolby == null) {
+            Icon(if (lossless) androidx.compose.material.icons.Icons.Rounded.GraphicEq else androidx.compose.material.icons.Icons.Rounded.HighQuality,
+                null, Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+        }
         // Only the tier ("Lossless", "Hi-Res Lossless"); the bit depth and rate are a tap away, on the signal path.
         Text(label.substringBefore(" · "), style = MaterialTheme.typography.labelMedium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
