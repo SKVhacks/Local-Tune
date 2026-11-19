@@ -85,6 +85,7 @@ internal fun FormatDetailsDialog(song: Song?, format: AudioFormatInfo?, onDismis
     val channels = format?.channels
     val trackRate = pipe.outputSampleRateHz ?: rate
     val quality = when {
+        dolbyTier(format) != null -> dolbyTier(format)!!.uppercase()
         lossless && (bits ?: 0) >= 24 -> "HI-RES LOSSLESS"
         lossless -> "LOSSLESS"
         (kbps ?: 0) >= 256 -> "HIGH QUALITY"

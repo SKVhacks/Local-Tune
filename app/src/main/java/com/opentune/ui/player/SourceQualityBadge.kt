@@ -1,5 +1,6 @@
 package com.opentune.ui.player
 
+import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
@@ -58,13 +59,18 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
     // A thin light line runs across the label, but only for lossless and Hi-Res
     // lossless: lossy streams keep a plain grey label.
     val lossless = isHighestQuality(source, format)
-    val phase = if (ui.reduceAnimation || !lossless) null else rememberInfiniteTransition(label = "quality light")
+    val dolby = dolbyTier(format)
+    val phase = if (ui.reduceAnimation || !(lossless || dolby != null)) null else rememberInfiniteTransition(label = "quality light")
         .animateFloat(-0.15f, 1.15f, infiniteRepeatable(tween(2800, easing = LinearEasing)), label = "quality sweep")
     TextButton(onClick = onClick, modifier = modifier.widthIn(max = 280.dp).fillMaxWidth().heightIn(min = 40.dp).semantics { contentDescription = "$label. Open signal path" },
         colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurfaceVariant),
         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
         // Lossless gets the waveform; a lossy stream the plain HQ mark (a headphone read as the output, not the quality).
-        Icon(if (lossless) androidx.compose.material.icons.Icons.Rounded.GraphicEq else androidx.compose.material.icons.Icons.Rounded.HighQuality,
+        Icon(when {
+                dolby != null -> androidx.compose.material.icons.Icons.Rounded.SurroundSound
+                lossless -> androidx.compose.material.icons.Icons.Rounded.GraphicEq
+                else -> androidx.compose.material.icons.Icons.Rounded.HighQuality
+            },
             null, Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
         // Only the tier ("Lossless", "Hi-Res Lossless"); the bit depth and rate are a tap away, on the signal path.
@@ -98,7 +104,9 @@ internal fun qualityStatusLabel(source: NerdStats.Source?, format: AudioFormatIn
     // JioSaavn and YouTube Music streams are named by their tier alone, without the bitrate.
     val saavn = source.provider.startsWith("JioSaavn")
     val youTube = source.provider.startsWith("YouTube")
+    val dolby = dolbyTier(format)
     val tier = when {
+        dolby != null -> dolby
         lossless && ((format?.bitDepth ?: 0) > 16 || (format?.sampleRateHz ?: 0) > 48000) -> "Hi-Res Lossless"
         lossless -> "Lossless"
         saavn -> "High Quality"
@@ -109,6 +117,7 @@ internal fun qualityStatusLabel(source: NerdStats.Source?, format: AudioFormatIn
     // The concrete signal behind the tier: bit depth and rate for lossless,
     // the stream's bitrate otherwise. So "Lossless" reads "Lossless · 24-bit/96 kHz".
     val detail = when {
+        dolby != null -> format?.channels?.let { channelLabel(it) }
         lossless -> {
             val bits = format?.bitDepth ?: source.bits
             val rate = format?.sampleRateHz ?: source.sampleRate
@@ -128,11 +137,41 @@ private fun khzLabel(hz: Int): String =
 /** Whether [source] is the best there is: lossless, rather than a lossy stream at any bitrate. */
 internal fun isHighestQuality(source: NerdStats.Source?, format: AudioFormatInfo?): Boolean {
     if (source == null || source.provider.startsWith("Checking highest")) return false
+    // Dolby's lossy formats run past the lossless bitrate floor (Atmos at 768 kbps):
+    // they have their own name, not "Lossless". TrueHD is the lossless one.
+    format?.codec?.let { if (dolbyTier(format) != null && !it.contains("TRUEHD", ignoreCase = true)) return false }
     // Some streams (an add-on's DASH or HLS FLAC) name their codec in a way that
     // doesn't say FLAC; no lossy stream runs anywhere near this bitrate, though.
     if ((format?.bitrateKbps ?: 0) >= LOSSLESS_MIN_KBPS) return true
     val codec = format?.codec ?: return false
     return LOSSLESS_CODECS.any { codec.contains(it, ignoreCase = true) }
+}
+
+/**
+ * Dolby's own name for the format, from the codec the player reports:
+ * E-AC-3 with Joint Object Coding is Dolby Atmos (what Apple Music's Atmos
+ * files are), and so is AC-4 with objects; plain E-AC-3 is Dolby Digital
+ * Plus, AC-3 Dolby Digital, TrueHD Dolby TrueHD. Null for anything not Dolby.
+ */
+internal fun dolbyTier(format: AudioFormatInfo?): String? {
+    val c = format?.codec?.uppercase()?.replace("-", "")?.replace("_", "") ?: return null
+    return when {
+        "JOC" in c || "ATMOS" in c -> "Dolby Atmos"
+        "AC4" in c -> "Dolby AC-4"
+        "TRUEHD" in c -> "Dolby TrueHD"
+        "EAC3" in c || "EC3" in c -> "Dolby Digital Plus"
+        "AC3" in c -> "Dolby Digital"
+        else -> null
+    }
+}
+
+/** "Stereo", "5.1", "7.1" and so on from a channel count. */
+private fun channelLabel(n: Int): String? = when (n) {
+    1 -> "Mono"
+    2 -> "Stereo"
+    6 -> "5.1"
+    8 -> "7.1"
+    else -> if (n > 2) "$n channels" else null
 }
 
 /** Above any lossy codec's top rate (AAC and Opus stop near 512 kbps for stereo). */
