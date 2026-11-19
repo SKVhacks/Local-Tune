@@ -471,27 +471,6 @@ fun PlayerLayout(
     // The plain cover flies, square or edge to edge; the vinyl, cassette and other designs just change view.
     val fullStyle = !landscape && !amoled &&
         (hasTall || ((apple || state.ui.fullScreenCover) && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)))
-    // The room left under the plain cover once it sits at the top of its page: the title,
-    // timeline and controls are drawn up by it, so they follow the cover, and the room
-    // ends up above the bottom row instead of round the cover.
-    var coverRoomPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    // The plain square cover sits at the top of its page, Apple-style, with the controls under it.
-    val topCover = !docked && !landscape && !fullStyle &&
-        style !in listOf(PlayerStyle.VINYL, PlayerStyle.CASSETTE, PlayerStyle.HALO, PlayerStyle.POLAROID, PlayerStyle.LYRICS_FIRST)
-    // The spare room is shared out in four even gaps: above the cover, under the title,
-    // between the timeline and the play controls, and above the bottom row. [spread]
-    // eases it in and out as the cover page comes and goes.
-    val spread by androidx.compose.animation.core.animateFloatAsState(
-        if (topCover && pane == Pane.COVER) 1f else 0f,
-        tween(420, easing = FastOutSlowInEasing), label = "spread",
-    )
-    val gap = coverRoomPx / 4f
-    // The cover page moves down a gap; the timeline block comes up two (all the room less
-    // the gaps above the cover and under the title); the controls go back down one more;
-    // the bottom row stays where it was.
-    val coverDrop = spread * gap
-    val controlsLift = spread * gap * 2f
-    val transportDrop = spread * gap
     val flies = !state.ui.reduceAnimation && !docked && !landscape &&
         style != PlayerStyle.VINYL && style != PlayerStyle.CASSETTE && style != PlayerStyle.HALO &&
         style != PlayerStyle.POLAROID && style != PlayerStyle.LYRICS_FIRST
@@ -1021,8 +1000,7 @@ fun PlayerLayout(
                             )
                         } else if (p == Pane.COVER) {
                             val seekBy: (Long) -> Unit = { d -> actions.seekTo((position() + d).coerceIn(0L, state.durationMs.coerceAtLeast(0L))) }
-                            // At the top, the cover's box is only as tall as the cover, so the title follows right under it.
-                            Box(Modifier.weight(1f, fill = !topCover).fillMaxWidth().then(if (docked) Modifier.fitSquare() else Modifier), contentAlignment = if (topCover) Alignment.TopCenter else Alignment.Center) {
+                            Box(Modifier.weight(1f).fillMaxWidth().then(if (docked) Modifier.fitSquare() else Modifier), contentAlignment = Alignment.Center) {
                                 // The plain cover has the taps built in; every other design is wrapped in them here.
                                 val ownTaps = !fullCover && style !in listOf(PlayerStyle.VINYL, PlayerStyle.CASSETTE, PlayerStyle.HALO, PlayerStyle.POLAROID)
                                 val design: @Composable () -> Unit = {
@@ -1071,15 +1049,7 @@ fun PlayerLayout(
                             TitleRow(
                                 current, isLiked, onLike = { LibraryStore.setLiked(current, !isLiked) }, onMore = { showMenu = true },
                                 Modifier
-                                    .onGloballyPositioned {
-                                        if (!flight.active && coverLift == 0f && dragOffset == 0f) {
-                                            bigTitle = it.boundsInRoot()
-                                            // What's left of the page under the title: the controls are drawn up by it.
-                                            val page = paneCoords?.takeIf { p -> p.isAttached }
-                                            // Measured as if the page weren't moved down, so the move doesn't feed back into it.
-                                            if (topCover && page != null) coverRoomPx = (page.boundsInRoot().bottom - (bigTitle!!.bottom - coverDrop)).coerceAtLeast(0f)
-                                        }
-                                    }
+                                    .onGloballyPositioned { if (!flight.active && coverLift == 0f && dragOffset == 0f) bigTitle = it.boundsInRoot() }
                                     .graphicsLayer { alpha = if (flight.active && bigTitle != null) 0f else 1f },
                             )
                         } else {
@@ -1186,8 +1156,7 @@ fun PlayerLayout(
                     if (outerPane == Pane.COVER || !listsFull) {
                         Box(
                             Modifier.fillMaxSize().zIndex(if (outerPane == Pane.COVER) 1f else 0f)
-                                .padding(top = if (docked) 0.dp else if (topCover) 6.dp else STATUS_ROOM)
-                                .offset { androidx.compose.ui.unit.IntOffset(0, coverDrop.toInt()) }
+                                .padding(top = if (docked) 0.dp else STATUS_ROOM)
                                 .graphicsLayer {
                                 val v = paneProgress()
                                 alpha = (1f - v * 1.6f).coerceIn(0f, 1f)
@@ -1249,7 +1218,7 @@ fun PlayerLayout(
                     enter = expandVertically(spring(dampingRatio = 0.9f, stiffness = 380f), expandFrom = Alignment.Top) + slideInVertically(spring(dampingRatio = 0.9f, stiffness = 380f)) { it / 2 } + fadeIn(tween(220)),
                     exit = shrinkVertically(tween(520, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + slideOutVertically(tween(520, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(tween(360)),
                 ) {
-                Column(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, -controlsLift.toInt()) }) {
+                Column {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     AnimatedVisibility(state.ui.skipToChorus && nextChorus != null, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                         SkipToChorus { nextChorus?.let { actions.seekTo((it - 250).coerceAtLeast(0)) } }
@@ -1267,7 +1236,6 @@ fun PlayerLayout(
                 if (state.ui.statsForNerds) {
                     Box(Modifier.clickable { showSignal = true }) { NerdStatsLine(state.audioFormat) }
                 }
-                Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, transportDrop.toInt()) }) {
                 PlayerControls(
                     isPlaying = state.isPlaying,
                     isBuffering = state.isBuffering,
@@ -1280,11 +1248,9 @@ fun PlayerLayout(
                     animate = !state.ui.reduceAnimation && state.loadingMessage?.startsWith("Offline") != true,
                     progress = { if (state.durationMs > 0) position() / state.durationMs.toFloat() else 0f },
                 )
-                }
                 if (!state.ui.hideVolumeBar && !minimal && roomy) VolumeBar(Modifier.padding(vertical = 4.dp))
                 Spacer(Modifier.height(10.dp))
-                // The bottom row (and the line under it) stay at the bottom while the rest is drawn up.
-                Row(Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, controlsLift.toInt()) }, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     GlassToggle(PlayerIcons.Lyrics, "Lyrics", pane == Pane.LYRICS, { toggle(Pane.LYRICS) })
                     // One pill that morphs between sleep and output, and the queue's modes.
                     val inQueueNow = pane == Pane.QUEUE
@@ -1324,7 +1290,7 @@ fun PlayerLayout(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, controlsLift.toInt()) }.padding(top = 10.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                 )
                 }
                 }
