@@ -225,6 +225,25 @@ fun PlayerBackdrop(
         }
         if (canvas != null) {
             CanvasBackdrop(canvas, playing, titleTop, canvasBehindText, Modifier.matchParentSize())
+        } else if (fullCover && tallArtwork != null) {
+            // Apple's tall cover: the whole picture across the screen's width at its own
+            // shape, from the very top, its lower part fading into the backdrop.
+            Box(Modifier.fillMaxWidth().graphicsLayer { alpha = if (fullCoverVisible) 1f else 0f }) {
+                androidx.compose.runtime.key(tallArtwork) {
+                    LoopingVideo(
+                        tallArtwork, playing,
+                        Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(Brush.verticalGradient(0.6f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                            },
+                        maxPx = 2160, maxBitrate = 20_000_000, alignTop = true,
+                    )
+                }
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.15f to Color.Transparent)))
+            }
         } else if (fullCover) {
             CoverSwap(CoverShown(artworkUrl, index, songId), change) { url, motion ->
                 // The cover runs from the top down to just behind the title and
@@ -254,10 +273,6 @@ fun PlayerBackdrop(
                         shape = RectangleShape,
                         imageModifier = Modifier.livingArt(playing, movingCover, artworkMotion),
                     )
-                    // The cover stays underneath until the video's first frame fades in over it.
-                    if (tallArtwork != null && url == artworkUrl) androidx.compose.runtime.key(tallArtwork) {
-                        LoopingVideo(tallArtwork, playing, Modifier.matchParentSize(), maxPx = 2160, maxBitrate = 20_000_000, alignTop = true)
-                    }
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.2f to Color.Transparent)))
                 }
                 }

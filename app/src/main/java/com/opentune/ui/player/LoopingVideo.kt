@@ -1,5 +1,6 @@
 package com.opentune.ui.player
 
+import androidx.compose.foundation.layout.aspectRatio
 import android.graphics.Matrix
 import android.view.TextureView
 import androidx.annotation.OptIn
@@ -131,7 +132,12 @@ internal fun LoopingVideo(
             }
         },
         update = { v -> crop(v, size, bars, alignTop) },
-        modifier = modifier.graphicsLayer { alpha = fade },
+        // Top-aligned (the tall cover) it takes the picture's own shape, so none of it is cut.
+        modifier = modifier
+            .then(if (alignTop) Modifier.aspectRatio(
+                if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 3f / 4f,
+            ) else Modifier)
+            .graphicsLayer { alpha = fade },
     )
 }
 
@@ -140,7 +146,9 @@ internal fun LoopingVideo(
  * ContentScale.Crop does for images; the [bars] in the picture are left
  * outside the view too.
  */
-private fun crop(view: TextureView, video: VideoSize, bars: Bars, alignTop: Boolean = false) {
+private fun crop(view: TextureView, video: VideoSize, found: Bars, alignTop: Boolean = false) {
+    // A dark picture's edges aren't bands: the tall cover is shown whole.
+    val bars = if (alignTop) Bars.NONE else found
     val w = view.width.toFloat()
     val h = view.height.toFloat()
     val vw = video.width * video.pixelWidthHeightRatio
