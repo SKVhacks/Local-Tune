@@ -766,7 +766,9 @@ fun PlayerLayout(
             // buttons bend, so its frames are never blurred again: see TallArtwork.
             if (tallVideo != null && !flight.active) {
                 androidx.compose.runtime.key(tallVideo) {
-                    TallArtwork(tallVideo, state.isPlaying, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize())
+                    // It loops whether or not the song plays, as Apple Music's does; it still stops
+                    // when the app is out of sight (TallArtwork follows the screen's lifecycle).
+                    TallArtwork(tallVideo, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize())
                 }
             }
 
