@@ -67,7 +67,8 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
         Icon(if (lossless) androidx.compose.material.icons.Icons.Rounded.GraphicEq else androidx.compose.material.icons.Icons.Rounded.HighQuality,
             null, Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium,
+        // Only the tier ("Lossless", "Hi-Res Lossless"); the bit depth and rate are a tap away, on the signal path.
+        Text(label.substringBefore(" · "), style = MaterialTheme.typography.labelMedium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.drawWithCache {
                 onDrawWithContent {
