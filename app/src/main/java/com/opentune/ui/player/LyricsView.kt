@@ -366,34 +366,39 @@ private fun SyncedLyrics(
             found
         }
     }
-    // Lines before the lit one still being sung: a backing vocal (or the line's own last
-    // words) running past the next line's start. They stay lit, sweeping, until they
-    // end, as Apple Music keeps them, rather than going dark the moment the next starts.
-    val lingering by remember(rows) {
+    // The rows lit now: those actually being sung. A line still going (its own last
+    // words, or backing vocals) stays lit and sweeping when a later one starts inside
+    // it, and a short interjection ("Uh") cutting into a long line goes dark once it's
+    // done while the long one sweeps on, as Apple Music shows it. In a pause, the line
+    // sung last stays lit until the next begins.
+    val litRows by remember(rows) {
         derivedStateOf {
             val p = pos()
             val current = activeRow
-            buildSet {
-                for (r in (current - 2).coerceAtLeast(0) until current) {
-                    val line = (rows[r] as? LyricRow.Line)?.line ?: continue
-                    val sungTo = maxOf(
-                        line.backgroundWords.maxOfOrNull { it.endMs } ?: 0L,
-                        if (line.wordSynced) line.words.maxOfOrNull { it.endMs } ?: 0L else 0L,
-                    )
-                    if (sungTo > p) add(r)
-                }
-            }
+            if (current < 0) return@derivedStateOf emptySet()
+            val recent = (current - 2).coerceAtLeast(0)..current
+            val singing = recent.filter { r ->
+                val line = (rows[r] as? LyricRow.Line)?.line ?: return@filter r == current
+                if (r == current) !line.wordSynced || sungTo(line) > p else sungTo(line) > p
+            }.toSet()
+            if (singing.isNotEmpty()) singing
+            else setOf(recent.filter { rows[it] is LyricRow.Line }.maxByOrNull { sungTo((rows[it] as LyricRow.Line).line) } ?: current)
         }
     }
+    // The row the view keeps in place: the earliest lit, so a long line isn't scrolled
+    // away while a short one that started inside it is lit too.
+    val focusRow by remember(rows) { derivedStateOf { litRows.minOrNull() ?: activeRow } }
     // The line the view is centred on, whether a line or the gap after it is lit.
-    val activeLine by remember(rows) { derivedStateOf { (rows.getOrNull(activeRow) as? LyricRow.Line)?.index ?: (rows.getOrNull(activeRow) as? LyricRow.Gap)?.gap?.afterIndex ?: -1 } }
+    val activeLine by remember(rows) { derivedStateOf { (rows.getOrNull(focusRow) as? LyricRow.Line)?.index ?: (rows.getOrNull(focusRow) as? LyricRow.Gap)?.gap?.afterIndex ?: -1 } }
     // Where the list is heading: the next row, from a moment before it's due. The glide
     // takes that moment, so a line arrives in place as it's sung rather than chasing it.
     val leadRow by remember(rows) {
         derivedStateOf {
-            val current = activeRow
+            val current = focusRow
             val next = rows.getOrNull(current + 1)
-            if (next == null) current
+            // Held on a line still being sung while a later one is lit too.
+            if (current < activeRow) current
+            else if (next == null) current
             else if (pos() + LINE_LEAD_MS + glideMs(rows, current) >= next.startMs) current + 1
             else current
         }
@@ -470,7 +475,7 @@ private fun SyncedLyrics(
                         LyricLineView(
                             line = line,
                             distance = i - activeLine,
-                            isActive = (r == activeRow || r in lingering) && !selecting,
+                            isActive = r in litRows && !selecting,
                             animation = animation,
                             blurEnabled = blur && following,
                             position = clock,
@@ -1142,3 +1147,9 @@ private fun lyricsStyle(): androidx.compose.ui.text.TextStyle {
         textAlign = if (ui.lyricsAlign == LyricsAlign.CENTER) TextAlign.Center else TextAlign.Start,
     )
 }
+
+/** When a line's singing ends: its own last word or its backing vocals, whichever is later; 0 for a line without word times. */
+private fun sungTo(line: LyricLine): Long = maxOf(
+    line.backgroundWords.maxOfOrNull { it.endMs } ?: 0L,
+    if (line.wordSynced) line.words.maxOfOrNull { it.endMs } ?: 0L else 0L,
+)
