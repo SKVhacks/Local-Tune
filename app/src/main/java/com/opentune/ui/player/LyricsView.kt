@@ -815,10 +815,9 @@ internal fun LyricLineView(
     // A word's trailing space is left out, and a word that still runs across a
     // wrap gets one box per row: a single box for the word that ends the first
     // row would span both rows edge to edge and dim the whole line until sung.
-    // Words light one by one where the source timed them, and Apple's TTML sweeps
-    // letter by letter even when timed by line. Other line-only lyrics (.lrc)
-    // light a whole line at once.
-    val sweep = isActive && line.words.isNotEmpty() && (line.wordSynced || line.sweeps)
+    // Words sweep letter by letter only where the file times them (word-timed TTML,
+    // enhanced LRC). A file timed only by line, TTML or LRC, lights a whole line at once.
+    val sweep = isActive && line.words.isNotEmpty() && line.wordSynced
     val cardPad by animateDpAsState(if (picking) 14.dp else 0.dp, tween(220), label = "cardPad")
     Column(
         Modifier
@@ -906,7 +905,7 @@ internal fun LyricLineView(
                 if (line.backgroundWords.isEmpty()) null
                 else line.copy(text = bg, words = line.backgroundWords, background = null, backgroundWords = emptyList())
             }
-            val bgSweep = isActive && bgLine != null && (line.wordSynced || line.sweeps)
+            val bgSweep = isActive && bgLine != null && line.wordSynced
             val bgLayout = remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                 bg,
@@ -1012,7 +1011,7 @@ internal fun SungLine(line: LyricLine, position: () -> Long, style: androidx.com
                 val boxes = wordBoxesOf(layout.value, line, text)
                 onDrawWithContent {
                     drawContent()
-                    if (line.wordSynced || line.sweeps) sweepDim(line, boxes, position(), 0.55f, rtl)
+                    if (line.wordSynced) sweepDim(line, boxes, position(), 0.55f, rtl)
                 }
             },
     )

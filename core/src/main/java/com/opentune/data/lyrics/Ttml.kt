@@ -77,7 +77,7 @@ internal object Ttml {
     internal fun lineTimed(start: Long, end: Long, text: String, voice: Int, background: String?, rtl: Boolean?): LyricLine {
         val split = TRAILING_ADLIBS.find(text)
         if (split == null || background != null || end <= start) {
-            return LyricLine(start, end, text, LrcParser.spreadAcross(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl, exactEnd = true, sweeps = true)
+            return LyricLine(start, end, text, LrcParser.spreadAcross(text, start, end), wordSynced = false, voice = voice, background = background, rtl = rtl, exactEnd = true)
         }
         val main = split.groupValues[1].trim()
         val adlibs = Regex("""\(([^()]*)\)""").findAll(split.groupValues[2]).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.joinToString(" ")
@@ -90,7 +90,7 @@ internal object Ttml {
         val adlibEnd = minOf(end, adlibStart + maxOf(LrcParser.pacedMs(adlibs), ADLIB_MIN_MS))
         return LyricLine(
             start, end, main, words, wordSynced = false, voice = voice,
-            background = adlibs, backgroundWords = LrcParser.spreadOver(adlibs, adlibStart, adlibEnd), rtl = rtl, exactEnd = true, sweeps = true,
+            background = adlibs, backgroundWords = LrcParser.spreadOver(adlibs, adlibStart, adlibEnd), rtl = rtl, exactEnd = true,
         )
     }
 

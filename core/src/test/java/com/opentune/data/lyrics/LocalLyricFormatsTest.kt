@@ -230,10 +230,12 @@ class LocalLyricFormatsTest {
     }
 
     @Test
-    fun appleTtmlSweepsButPlainLrcLightsWholeLines() {
+    fun onlyWordTimedLyricsSweep() {
         val ttml = Ttml.parse("""<tt itunes:timing="Line"><body><div><p begin="1.0" end="4.0">Life in plastic</p></div></body></tt>""")
-        assertTrue(ttml.single().sweeps)
+        assertTrue(ttml.none { it.wordSynced })
+        val wordTimed = Ttml.parse("""<tt itunes:timing="Word"><body><div><p begin="1.0" end="4.0"><span begin="1.0" end="2.0">Life</span> <span begin="2.0" end="4.0">in</span></p></div></body></tt>""")
+        assertTrue(wordTimed.single().wordSynced)
         val lrc = LrcParser.parse("[00:27.72]Adiyae kolluthey\n[00:31.72]Azhago alluthey")
-        assertTrue(lrc.none { it.sweeps || it.wordSynced })
+        assertTrue(lrc.none { it.wordSynced })
     }
 }

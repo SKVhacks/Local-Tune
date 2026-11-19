@@ -35,12 +35,6 @@ data class LyricLine(
      */
     val exactEnd: Boolean = false,
     /**
-     * Sweeps letter by letter while sung even without word times: Apple's
-     * TTML, which Apple Music always shows sweeping. Other line-only lyrics
-     * (most .lrc) light a whole line at once.
-     */
-    val sweeps: Boolean = false,
-    /**
      * Right to left (Arabic, Hebrew, Persian, Urdu), as the source marks it;
      * null when it doesn't say, and the text's own script decides. Kept with
      * downloaded lyrics like the rest of the line.
