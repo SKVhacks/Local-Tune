@@ -385,9 +385,18 @@ private fun SyncedLyrics(
             else setOf(recent.filter { rows[it] is LyricRow.Line }.maxByOrNull { sungTo((rows[it] as LyricRow.Line).line) } ?: current)
         }
     }
-    // The row the view keeps in place: the earliest lit, so a long line isn't scrolled
-    // away while a short one that started inside it is lit too.
-    val focusRow by remember(rows) { derivedStateOf { litRows.minOrNull() ?: activeRow } }
+    // The row the view keeps in place: the earliest lit line that goes on well past
+    // the latest one's start (HOLD_MS), so a long line isn't scrolled away while a short
+    // one that started inside it is lit too. Lines that merely overlap the next by a
+    // moment (Apple's files do it all the time) don't hold it: the view moves on as
+    // usual, rather than stepping back up to them and down again.
+    val focusRow by remember(rows) {
+        derivedStateOf {
+            val current = activeRow
+            val start = rows.getOrNull(current)?.startMs ?: return@derivedStateOf current
+            litRows.sorted().firstOrNull { r -> r == current || holdsOver(rows[r], start) } ?: current
+        }
+    }
     // The line the view is centred on, whether a line or the gap after it is lit.
     val activeLine by remember(rows) { derivedStateOf { (rows.getOrNull(focusRow) as? LyricRow.Line)?.index ?: (rows.getOrNull(focusRow) as? LyricRow.Gap)?.gap?.afterIndex ?: -1 } }
     // Where the list is heading: the next row, from a moment before it's due. The glide
@@ -396,8 +405,10 @@ private fun SyncedLyrics(
         derivedStateOf {
             val current = focusRow
             val next = rows.getOrNull(current + 1)
-            // Held on a line still being sung while a later one is lit too.
+            // Held on a line still being sung while a later one is lit too, and not
+            // gliding on to a short line that will start inside this one.
             if (current < activeRow) current
+            else if (next != null && holdsOver(rows[current], next.startMs)) current
             else if (next == null) current
             else if (pos() + LINE_LEAD_MS + glideMs(rows, current) >= next.startMs) current + 1
             else current
@@ -1153,3 +1164,12 @@ private fun sungTo(line: LyricLine): Long = maxOf(
     line.backgroundWords.maxOfOrNull { it.endMs } ?: 0L,
     if (line.wordSynced) line.words.maxOfOrNull { it.endMs } ?: 0L else 0L,
 )
+
+/** True when [row], a line, is still being sung more than [HOLD_MS] after a later line starts at [laterStart]. */
+private fun holdsOver(row: LyricRow, laterStart: Long): Boolean {
+    val line = (row as? LyricRow.Line)?.line ?: return false
+    return sungTo(line) - laterStart > HOLD_MS
+}
+
+/** How long a line must go on past the next one's start to keep the view on it. */
+private const val HOLD_MS = 1_000L
