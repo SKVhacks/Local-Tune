@@ -171,6 +171,8 @@ fun PlayerBackdrop(
     songId: String? = null,
     /** Spotify's Canvas for the playing song, looped over the whole backdrop. */
     canvas: String? = null,
+    /** The song folder's tall animated cover: played in the full cover's place, edge to edge from the top. */
+    tallArtwork: String? = null,
     /** Where the title starts, from the top: over a Canvas, the frost begins a little above it. */
     titleTop: Dp? = null,
     /** Lyrics or the queue are open over the Canvas: it's frosted and darkened all the way up. */
@@ -252,6 +254,10 @@ fun PlayerBackdrop(
                         shape = RectangleShape,
                         imageModifier = Modifier.livingArt(playing, movingCover, artworkMotion),
                     )
+                    // The cover stays underneath until the video's first frame fades in over it.
+                    if (tallArtwork != null && url == artworkUrl) androidx.compose.runtime.key(tallArtwork) {
+                        LoopingVideo(tallArtwork, playing, Modifier.matchParentSize(), maxPx = 2160, maxBitrate = 20_000_000, alignTop = true)
+                    }
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.2f to Color.Transparent)))
                 }
                 }

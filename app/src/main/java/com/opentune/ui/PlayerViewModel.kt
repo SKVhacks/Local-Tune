@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import com.opentune.data.settings.AppSettings
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
@@ -37,7 +38,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Animated covers came from Apple Music and Spotify; songs on the phone have none. */
     val coverVideo = MutableStateFlow<com.opentune.ui.player.CoverMotion?>(null).asStateFlow()
-    val canvasVideo = MutableStateFlow<String?>(null).asStateFlow()
+    /**
+     * The playing song's tall animated cover from its folder (AnimatedArtwork),
+     * looked up again when the song changes, the setting flips or video access is granted.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val canvasVideo = combine(
+        player.currentSong.map { it?.videoId }.distinctUntilChanged(),
+        AppSettings.ui.map { it.animatedArtwork }.distinctUntilChanged(),
+        com.opentune.data.local.AnimatedArtwork.changes,
+    ) { id, on, _ -> Pair(id, on) }
+        .mapLatest { (id, on) -> if (on && id != null) com.opentune.data.local.AnimatedArtwork.tallFor(application, id) else null }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
     val queue = player.queue
     val currentIndex = player.currentIndex
     val upNext = player.upNext

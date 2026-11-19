@@ -358,6 +358,8 @@ data class InterfaceSettings(
      * so the screen is only redrawn where something really changes.
      */
     val coolPlayer: Boolean = true,
+    /** A song folder's tall_animated_artwork video plays behind the player, as Apple Music shows it. */
+    val animatedArtwork: Boolean = true,
     /** The mark's dive into the app when it starts. */
     val openingAnimation: Boolean = true,
     /** Solid fills instead of frosted glass. */

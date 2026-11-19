@@ -841,6 +841,13 @@ private fun settingsSections(
                         icon = Icons.Rounded.BatterySaver,
                     )
                 },
+                Entry("Animated artwork", "apple tall animated artwork video motion mp4 canvas") {
+                    ToggleRow(
+                        "Animated artwork", ui.animatedArtwork, { v -> AppSettings.updateUi { it.copy(animatedArtwork = v) } },
+                        summary = "When a song's folder has a tall_animated_artwork video, it plays behind the player like Apple Music. Needs access to videos.",
+                        icon = Icons.Rounded.Animation,
+                    )
+                },
                 Entry("Moving cover art", "motion artwork canvas animated cover drift zoom") {
                     ToggleRow("Moving cover art", ui.movingCover, { v -> AppSettings.updateUi { it.copy(movingCover = v) } }, summary = if (ui.coolPlayer) "Off while Keep the phone cool is on" else "The cover drifts and zooms slowly in the player while a song plays", icon = Icons.Rounded.Animation)
                 },

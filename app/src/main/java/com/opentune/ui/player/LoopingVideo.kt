@@ -45,6 +45,8 @@ internal fun LoopingVideo(
     maxPx: Int = 1080,
     /** The most bits a second worth spending on a silent loop. */
     maxBitrate: Int = 4_000_000,
+    /** Keep the picture's top edge at the view's top when cropping (Apple's tall cover), rather than centring it. */
+    alignTop: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -58,7 +60,11 @@ internal fun LoopingVideo(
     val player = remember(url) {
         ExoPlayer.Builder(context)
             // Kept on disk, so each turn of the loop plays from the phone rather than downloading again.
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(LoopCache.dataSource(context)))
+            // A file on the phone is read straight from there; copying it into the cache would only double it.
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                if (url.startsWith("content:") || url.startsWith("file:")) androidx.media3.datasource.DefaultDataSource.Factory(context)
+                else LoopCache.dataSource(context),
+            ))
             .build().apply {
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ONE
@@ -120,11 +126,11 @@ internal fun LoopingVideo(
         factory = { c ->
             TextureView(c).also { v ->
                 player.setVideoTextureView(v)
-                v.addOnLayoutChangeListener { l, _, _, _, _, _, _, _, _ -> crop(l as TextureView, size, bars) }
+                v.addOnLayoutChangeListener { l, _, _, _, _, _, _, _, _ -> crop(l as TextureView, size, bars, alignTop) }
                 view = v
             }
         },
-        update = { v -> crop(v, size, bars) },
+        update = { v -> crop(v, size, bars, alignTop) },
         modifier = modifier.graphicsLayer { alpha = fade },
     )
 }
@@ -134,7 +140,7 @@ internal fun LoopingVideo(
  * ContentScale.Crop does for images; the [bars] in the picture are left
  * outside the view too.
  */
-private fun crop(view: TextureView, video: VideoSize, bars: Bars) {
+private fun crop(view: TextureView, video: VideoSize, bars: Bars, alignTop: Boolean = false) {
     val w = view.width.toFloat()
     val h = view.height.toFloat()
     val vw = video.width * video.pixelWidthHeightRatio
@@ -147,7 +153,8 @@ private fun crop(view: TextureView, video: VideoSize, bars: Bars) {
     val scale = maxOf(w / cw, h / ch)
     // Centred on the picture, not on the frame round it, when the bands aren't even.
     val dx = (bars.left - bars.right) / 2f * vw * scale
-    val dy = (bars.top - bars.bottom) / 2f * vh * scale
+    // Top-aligned: whatever spills over is taken off the bottom only.
+    val dy = if (alignTop) -(vh * scale - h) / 2f + bars.top * vh * scale else (bars.top - bars.bottom) / 2f * vh * scale
     view.setTransform(Matrix().apply {
         setScale(vw * scale / w, vh * scale / h, w / 2f, h / 2f)
         postTranslate(-dx, -dy)

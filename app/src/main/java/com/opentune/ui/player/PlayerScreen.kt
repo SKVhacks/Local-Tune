@@ -410,6 +410,18 @@ fun PlayerLayout(
     val device = rememberOutputDeviceName()
     val outputRoute = rememberOutputRoute()
     val sleepLabel = sleepTimerLabel()
+    // Animated artwork needs to read videos: asked for once, the first time the player
+    // opens with it on, and looked up again as soon as it's allowed.
+    val videoAccess = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { ok -> if (ok) com.opentune.data.local.AnimatedArtwork.refresh() }
+    LaunchedEffect(state.ui.animatedArtwork) {
+        if (!state.ui.animatedArtwork || com.opentune.data.local.AnimatedArtwork.allowed(context)) return@LaunchedEffect
+        val prefs = context.getSharedPreferences("animated_artwork", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean("asked", false)) return@LaunchedEffect
+        prefs.edit().putBoolean("asked", true).apply()
+        runCatching { videoAccess.launch(com.opentune.data.local.AnimatedArtwork.permission) }
+    }
 
     // Drag down anywhere outside the lyrics and queue lists to close.
     // Plain state, written straight from the drag: the release spring then
@@ -442,15 +454,22 @@ fun PlayerLayout(
     val roomy = !docked || windowHeight >= DOCKED_ROOMY_HEIGHT
     // On its side the player has its own layout.
     val landscape = !docked && (television || LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE)
+    // A song with a tall animated cover in its folder gets Apple's layout: the video edge
+    // to edge from the top, fading out behind the title, in any player style.
+    val hasTall = state.canvasVideo != null && !landscape && !amoled
     // Full-screen cover only fits the layouts built around a plain square cover.
-    val fullCover = !landscape && !amoled && (apple || state.ui.fullScreenCover) && pane == Pane.COVER && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)
+    val fullCover = !landscape && !amoled && pane == Pane.COVER &&
+        (hasTall || ((apple || state.ui.fullScreenCover) && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)))
+    // Only on the player itself, not behind lyrics or the queue, as Apple does.
+    val tallVideo = state.canvasVideo.takeIf { fullCover }
     // Where the cover area ends, measured from the top of the player, so a
     // full-screen cover can run down to the title on any screen height.
     var playerCoords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     var coverBottomPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
 
     // The plain cover flies, square or edge to edge; the vinyl, cassette and other designs just change view.
-    val fullStyle = !landscape && !amoled && (apple || state.ui.fullScreenCover) && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)
+    val fullStyle = !landscape && !amoled &&
+        (hasTall || ((apple || state.ui.fullScreenCover) && (apple || style == PlayerStyle.CLASSIC || style == PlayerStyle.MINIMAL)))
     val flies = !state.ui.reduceAnimation && !docked && !landscape &&
         style != PlayerStyle.VINYL && style != PlayerStyle.CASSETTE && style != PlayerStyle.HALO &&
         style != PlayerStyle.POLAROID && style != PlayerStyle.LYRICS_FIRST
@@ -736,7 +755,8 @@ fun PlayerLayout(
                     change = if (state.ui.reduceAnimation) com.opentune.data.settings.CoverChange.FADE else state.ui.coverChange,
                     index = state.currentIndex,
                     songId = current.videoId,
-                    canvas = state.canvasVideo,
+                    canvas = null,
+                    tallArtwork = tallVideo,
                     titleTop = with(LocalDensity.current) { bigTitle?.top?.takeIf { it > 0f }?.toDp() },
                     // Lyrics and the queue are read over the whole page, so the Canvas frosts top to bottom.
                     canvasBehindText = pane != Pane.COVER,
@@ -985,7 +1005,7 @@ fun PlayerLayout(
                                             onSeekBy = seekBy.takeIf { state.ui.doubleTapSeek },
                                             glow = state.ui.coverGlow && !state.ui.reduceAnimation && !amoled && !apple,
                                             video = state.coverVideo,
-                                            canvasShowing = state.canvasVideo != null,
+                                            canvasShowing = false,
                                         )
                                 }
                                 }
