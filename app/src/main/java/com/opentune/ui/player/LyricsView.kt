@@ -703,21 +703,38 @@ private fun buildLyricRows(lines: List<LyricLine>): List<LyricRow> {
  * Three dots for an instrumental break. They fill in one after another as the
  * break runs out, so you can see the next line coming, and breathe while they wait.
  *
- * The row keeps its height whether the dots show or not, and they only fade:
- * a row growing and shrinking moved the lines under the scroll's own glide,
- * and the line after a break shook and settled instead of arriving smoothly.
+ * As Apple Music does it, the break takes no room until it comes: the lines
+ * keep their even spacing, and when the music takes over the dots rise up out of
+ * the space between the two lines, opening it as they grow, then sink back into
+ * it as the next line comes. The opening is a soft, unbouncing spring, so the
+ * lines move with the scroll's own glide rather than against it.
  */
 @Composable
 private fun GapDots(visible: Boolean, progress: () -> Float) {
-    val shown by animateFloatAsState(if (visible) 1f else 0f, tween(if (visible) 420 else 260), label = "gapShown")
+    val shown by animateFloatAsState(
+        if (visible) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 140f),
+        label = "gapShown",
+    )
+    if (shown <= 0.001f && !visible) return
     run {
         val transition = rememberInfiniteTransition(label = "gap")
         val breath by transition.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(1_200), RepeatMode.Reverse), label = "breath")
         val ink = MaterialTheme.colorScheme.onSurface
         Row(
             Modifier
+                // Only as tall as it's opened, the dots kept in the middle of the opening.
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    val height = (placeable.height * shown).toInt()
+                    layout(placeable.width, height) { placeable.place(0, (height - placeable.height) / 2) }
+                }
                 .padding(vertical = 18.dp)
-                .graphicsLayer { scaleX = breath; scaleY = breath; alpha = shown; transformOrigin = TransformOrigin(0f, 0.5f) },
+                .graphicsLayer {
+                    val grow = shown * breath
+                    scaleX = grow; scaleY = grow; alpha = shown
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                },
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             repeat(3) { i ->
