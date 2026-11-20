@@ -38,8 +38,9 @@ internal val FOLDED_GROUPS = mapOf("Seek bar" to 2)
  */
 internal val SETTINGS_CATEGORIES = listOf(
     SettingsCategory(
-        "audio", "Sound and quality", "Loudness, effects and output", Icons.Rounded.GraphicEq,
+        "audio", "Sound and quality", "Pure output, effects and output", Icons.Rounded.GraphicEq,
         listOf(
+            "Pure output" to listOf("Pure output"),
             "Loudness" to listOf("Loudness normalization", "Volume level", "Normalize on the phone speaker"),
             "Effects" to listOf("Equalizer", "Clarity", "Spatial audio", "System audio effects"),
             "Output" to listOf("Output precision", "Prefer USB DAC", "Bit-perfect USB output"),
@@ -48,7 +49,7 @@ internal val SETTINGS_CATEGORIES = listOf(
     SettingsCategory(
         "playback", "Playback", "Between songs, autoplay and headphones", Icons.Rounded.PlayCircle,
         listOf(
-            "Between songs" to listOf("Crossfade", "Skip silence", "Preload upcoming songs"),
+            "Between songs" to listOf("Crossfade", "Skip silence"),
             "Autoplay and suggestions" to listOf("Autoplay", "Don't repeat songs in current session", "Smart shuffle"),
             "Headphones and the app" to listOf("Resume when headphones connect", "Pause at zero volume", "Background playback", "Stop music on close from recents"),
         ),
@@ -57,7 +58,7 @@ internal val SETTINGS_CATEGORIES = listOf(
         "lyrics", "Lyrics", "Lyric files, sync, animation and size", Icons.Rounded.Lyrics,
         listOf(
             "Display" to listOf("Synced lyrics", "Lyrics text size", "Lyrics alignment", "Lyrics take the screen"),
-            "Effects" to listOf("Lyrics animation", "Sweep line-timed lyrics", "Glow on the sung line", "Blur unfocused lyrics"),
+            "Effects" to listOf("Lyrics animation", "Glow on the sung line", "Blur unfocused lyrics"),
             "Lyric files" to listOf("Lyrics folders"),
         ),
     ),
@@ -76,7 +77,7 @@ internal val SETTINGS_CATEGORIES = listOf(
             "Layout" to listOf("Player layout", "Player buttons", "Keep the phone cool", "Player background", "Player beside the page"),
             "Cover art" to listOf("Full-screen cover art", "Moving cover art", "Glow under the cover", "Song change", "Double-tap to skip 10 seconds"),
             "Seek bar" to listOf("Wavy seek bar", "Lyric preview while seeking", "Seek bar thickness", "Seek bar handle", "Seek bar colour", "Seek bar time", "Song part marks"),
-            "On the player" to listOf("Lyrics preview", "Audio details page", "Skip to chorus", "Hide volume bar", "Hide song status", "Show stats for nerds"),
+            "On the player" to listOf("Lyrics preview", "Audio details page", "Skip to chorus", "Show stats for nerds"),
         ),
     ),
     SettingsCategory(
@@ -89,11 +90,10 @@ internal val SETTINGS_CATEGORIES = listOf(
         ),
     ),
     SettingsCategory(
-        "library", "Library", "Tabs, playlists and what's hidden", Icons.Rounded.LibraryMusic,
+        "library", "Library", "Layout and gestures", Icons.Rounded.LibraryMusic,
         listOf(
             "Tabs" to listOf("Wide-screen layout"),
-            "Playlists and songs" to listOf("Playlists in Library", "Swipe songs to queue them"),
-            "What's hidden" to listOf("Hidden songs and artists"),
+            "Songs" to listOf("Swipe songs to queue them"),
         ),
     ),
     SettingsCategory(
@@ -114,7 +114,7 @@ internal val SETTINGS_CATEGORIES = listOf(
     SettingsCategory(
         "about", "About", "Source code and diagnostics", Icons.Rounded.Info,
         listOf(
-            "About" to listOf("What's new", "Source code"),
+            "About" to listOf("Source code"),
             "Help" to listOf("Export diagnostics"),
         ),
     ),

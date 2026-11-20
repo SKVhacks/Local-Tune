@@ -617,7 +617,7 @@ private fun settingsSections(
                         beta = true,
                     )
                 },
-                Entry("System audio effects", "dolby atmos soundalive equalizer device effects") {
+                if (pb.pureOutput) null else Entry("System audio effects", "dolby atmos soundalive equalizer device effects") {
                     ToggleRow("System audio effects", pb.systemEffects, { v -> AppSettings.updatePlayback { it.copy(systemEffects = v) } }, summary = "Let the phone's own effects (Dolby, SoundAlive, system equalizer) process playback", icon = Icons.Rounded.SurroundSound)
                 },
                 Entry("Background playback", "battery optimization doze killed stops samsung") {
@@ -640,19 +640,19 @@ private fun settingsSections(
                 Entry("Pure output", "raw untouched bit perfect original audio no processing dsp equalizer effects bypass") {
                     ToggleRow(
                         "Pure output", pb.pureOutput, { v -> AppSettings.updatePlayback { it.copy(pureOutput = v) } },
-                        summary = "Plays each file's own audio untouched: no equalizer or effects, no loudness levelling, and the phone's sound effects closed. Your equalizer settings are kept for when this is off.",
+                        summary = "Plays each file's own audio untouched: no equalizer or effects, no loudness levelling, and the phone's sound effects closed. Turn off to see the equalizer and effects again; their settings are kept.",
                         icon = Icons.Rounded.GraphicEq,
                     )
                 },
-                Entry("Loudness normalization", "volume level") {
+                if (pb.pureOutput) null else Entry("Loudness normalization", "volume level") {
                     ToggleRow("Loudness normalization", pb.loudnessNormalization, { v -> AppSettings.updatePlayback { it.copy(loudnessNormalization = v) } }, summary = "Uses each file's ReplayGain tag to set one steady volume per song", icon = Icons.AutoMirrored.Rounded.VolumeUp)
                 },
-                if (pb.loudnessNormalization) Entry("Volume level", "loud louder quiet normal volume level loudness target boost") {
+                if (pb.loudnessNormalization && !pb.pureOutput) Entry("Volume level", "loud louder quiet normal volume level loudness target boost") {
                     SettingRow("Volume level", summary = pb.volumeLevel.summary, icon = Icons.AutoMirrored.Rounded.VolumeUp, below = {
                         PillSegmented(VolumeLevel.entries, pb.volumeLevel, { it.label }, { v -> AppSettings.updatePlayback { it.copy(volumeLevel = v) } })
                     })
                 } else null,
-                if (pb.loudnessNormalization) Entry("Normalize on the phone speaker", "loudness volume speaker louder quiet normalization level") {
+                if (pb.loudnessNormalization && !pb.pureOutput) Entry("Normalize on the phone speaker", "loudness volume speaker louder quiet normalization level") {
                     ToggleRow(
                         "Normalize on the phone speaker",
                         pb.normalizeOnSpeaker,
@@ -662,9 +662,6 @@ private fun settingsSections(
                         icon = Icons.Rounded.Speaker,
                     )
                 } else null,
-                Entry("Preload upcoming songs", "latency fast skip instant buffer") {
-                    ToggleRow("Preload upcoming songs", pb.preloadUpcoming, { v -> AppSettings.updatePlayback { it.copy(preloadUpcoming = v) } }, summary = "Next and previous songs start almost instantly. Uses a little extra data.", icon = Icons.Rounded.Speed)
-                },
                 Entry("Crossfade", "fade blend transition overlap") {
                     SettingRow(
                         "Crossfade",
@@ -683,13 +680,13 @@ private fun settingsSections(
                 Entry("Skip silence", "gaps") {
                     ToggleRow("Skip silence", pb.skipSilence, { v -> AppSettings.updatePlayback { it.copy(skipSilence = v) } }, summary = "Trim gaps longer than a second", icon = Icons.Rounded.SpaceBar)
                 },
-                Entry("Clarity", "studio master clarity presence air bass clear enhance") {
+                if (pb.pureOutput) null else Entry("Clarity", "studio master clarity presence air bass clear enhance") {
                     ToggleRow("Clarity", pb.clarity, { v -> AppSettings.updatePlayback { it.copy(clarity = v) } }, summary = "Firmer bass, less mud, more presence and air, at the same loudness. Off plays the file untouched.", icon = Icons.Rounded.AutoAwesome, beta = true)
                 },
-                Entry("Spatial audio", "stereo widen immersive") {
+                if (pb.pureOutput) null else Entry("Spatial audio", "stereo widen immersive") {
                     ToggleRow("Spatial audio", pb.spatialAudio, { v -> AppSettings.updatePlayback { it.copy(spatialAudio = v) } }, summary = "Widens stereo tracks for a more open sound", icon = Icons.Rounded.SurroundSound, beta = true)
                 },
-                Entry("Equalizer", "eq bands tone balance bass treble") {
+                if (pb.pureOutput) null else Entry("Equalizer", "eq bands tone balance bass treble") {
                     NavRow("Equalizer", onOpenEqualizer, summary = "Fifteen bands, tone and balance", icon = Icons.Rounded.Equalizer)
                 },
                 Entry("Autoplay", "radio continue") {
@@ -700,19 +697,6 @@ private fun settingsSections(
                 },
                 Entry("Smart shuffle", "shuffle similar songs mix recommendations playlist album sparkle") {
                     ToggleRow("Smart shuffle", pb.smartShuffle, { v -> AppSettings.updatePlayback { it.copy(smartShuffle = v) } }, summary = "Mixes a similar song in after every four. Tap the player's shuffle button twice, or long-press Shuffle on a playlist or album", icon = Icons.Rounded.AutoAwesome)
-                },
-                Entry("Hidden songs and artists", "not interested don't play hide block artist unhide suggestions") {
-                    val count = hidden.songs.size + hidden.artists.size
-                    NavRow(
-                        "Hidden songs and artists",
-                        { hiddenDialog = true },
-                        summary = if (count == 0) "Kept out of autoplay, radio and Home. Nothing hidden yet"
-                        else listOfNotNull(
-                            hidden.songs.size.takeIf { it > 0 }?.let { if (it == 1) "1 song" else "$it songs" },
-                            hidden.artists.size.takeIf { it > 0 }?.let { if (it == 1) "1 artist" else "$it artists" },
-                        ).joinToString(" and ") + " kept out of suggestions",
-                        icon = Icons.Rounded.VisibilityOff,
-                    )
                 },
                 Entry("Resume when headphones connect", "bluetooth headset wired auto play resume connect car") {
                     ToggleRow("Resume when headphones connect", pb.resumeOnConnect, { v -> AppSettings.updatePlayback { it.copy(resumeOnConnect = v) } }, summary = "Carries on playing when headphones are plugged in or a Bluetooth device connects, while OpenTune is open or in the notification", icon = com.opentune.ui.player.PlayerIcons.Headphones)
@@ -1079,32 +1063,18 @@ private fun settingsSections(
         Section(
             "Miscellaneous",
             listOf(
-                Entry("Playlists in Library", "playlists library tiles list grid view rows layout show all view all") {
-                    SettingRow("Playlists in Library", summary = "Tiles in a sideways row, or a list down the page by where they're from, each with View all", icon = Icons.AutoMirrored.Rounded.QueueMusic, below = {
-                        PillSegmented(listOf(false, true), ui.playlistList, { if (it) "List" else "Tiles" }, { v -> AppSettings.updateUi { it.copy(playlistList = v) } })
-                    })
-                },
                 Entry("Swipe songs to queue them", "gesture swipe queue play next add to queue") {
                     ToggleRow("Swipe songs to queue them", pb.swipeToQueue, { v -> AppSettings.updatePlayback { it.copy(swipeToQueue = v) } }, summary = "Swipe a song right to play it next, or left to add it to the end of the queue", icon = Icons.AutoMirrored.Rounded.PlaylistPlay)
-                },
-                Entry("Hide volume bar", "player slider") {
-                    ToggleRow("Hide volume bar", ui.hideVolumeBar, { v -> AppSettings.updateUi { it.copy(hideVolumeBar = v) } }, summary = "Removes the volume slider from the player", icon = Icons.AutoMirrored.Rounded.VolumeOff)
                 },
                 Entry("Lyrics preview", "player lyrics line apple music classic theme") {
                     ToggleRow("Lyrics preview", ui.lyricsPreview, { v -> AppSettings.updateUi { it.copy(lyricsPreview = v) } },
                         summary = "Show the current lyric on the player in every theme", icon = Icons.Rounded.Lyrics)
-                },
-                Entry("Hide song status", "playing from") {
-                    ToggleRow("Hide song status", ui.hideSongStatus, { v -> AppSettings.updateUi { it.copy(hideSongStatus = v) } }, summary = "Hides the \"Playing from\" line in the player", icon = Icons.Rounded.VisibilityOff)
                 },
             ),
         ),
         Section(
             "Advanced",
             listOf(
-                Entry("What's new", "release notes changelog version highlights") {
-                    NavRow("What's new", { showWhatsNew = true }, summary = "Highlights and improvements in ${BuildConfig.VERSION_NAME}", icon = Icons.Rounded.SystemUpdate)
-                },
                 Entry("Source code", "github open source license gpl") {
                     NavRow("Source code", {
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/justshivv/Opentune".toUri())) }
