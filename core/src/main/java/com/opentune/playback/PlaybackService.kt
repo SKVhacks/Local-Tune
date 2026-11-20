@@ -149,6 +149,20 @@ class PlaybackService : MediaLibraryService() {
                     }
                 }
             }
+            override fun buildAudioRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                audioSink: AudioSink,
+                eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
+                out: ArrayList<androidx.media3.exoplayer.Renderer>,
+            ) {
+                super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
+                // Dolby, DTS and the like only through the phone's own decoders: see SpatialGuard.
+                SpatialGuard.guard(out)
+            }
             override fun buildAudioSink(
                 context: Context,
                 enableFloatOutput: Boolean,
@@ -726,6 +740,13 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            // A spatial song the phone has no decoder for: said so, and the next one plays,
+            // rather than the time running on in silence.
+            SpatialGuard.refused(tracks)?.let { f ->
+                com.opentune.data.Pills.error("This phone can't play ${SpatialGuard.name(f)}, so the song was skipped", this@PlaybackService)
+                mediaSession?.player?.let { p -> if (p.hasNextMediaItem()) p.seekToNextMediaItem() else p.pause() }
+                return
+            }
             val format = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
                 ?.let { g -> (0 until g.length).firstOrNull(g::isTrackSelected)?.let(g::getTrackFormat) } ?: return
             // The file's own ReplayGain, for loudness normalization.
