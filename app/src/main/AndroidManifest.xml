@@ -23,6 +23,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- Animated artwork: the tall_animated_artwork video kept beside a song. -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- The Bluetooth codec in use (SBC, AAC, LDAC…), shown in the audio details. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- "Set as ringtone": changing the default sounds, and on Android 9 and
          older saving the ringtone's copy to shared storage. -->

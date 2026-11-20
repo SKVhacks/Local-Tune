@@ -76,6 +76,7 @@ internal fun FormatDetailsDialog(song: Song?, format: AudioFormatInfo?, onDismis
     val bitPerfect by BitPerfectUsb.status.collectAsState()
     val device = rememberOutputDeviceName()
     val route = rememberOutputRoute()
+    val btCodec by rememberBluetoothCodec(route, device)
     val mixerRate = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
 
     val lossless = isHighestQuality(source, format)
@@ -150,6 +151,7 @@ internal fun FormatDetailsDialog(song: Song?, format: AudioFormatInfo?, onDismis
             }
             DetailsCard("Output & routing") {
                 DetailRow(if (route == OutputRoute.PHONE) Icons.Rounded.VolumeUp else route.icon, "Active Device", device)
+                btCodec?.let { DetailRow(route.icon, "Bluetooth Codec", it.toString()) }
                 DetailRow(Icons.Rounded.Speed, "Hi-Fi Mode", when (val bp = bitPerfect) {
                     is BitPerfectUsb.Status.Active -> "Exclusive USB · ${bp.format.ifEmpty { "${bp.bits}-bit" }}"
                     is BitPerfectUsb.Status.NoMatch -> "On · DAC has no bit-perfect ${kiloHertz(bp.sampleRate)}"

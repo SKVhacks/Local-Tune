@@ -98,14 +98,12 @@ class PlayerConnection(private val context: Context) {
     private fun refreshLoading(player: Player) {
         val buffering = player.playbackState == Player.STATE_BUFFERING && PlaybackRequests.soundingPosition == null
         val waiting = player.playWhenReady && (buffering || player.playerError != null)
-        val online = AppSettings.isOnline()
         val now = android.os.SystemClock.elapsedRealtime()
-        if (buffering && player.playWhenReady && online) {
+        if (buffering && player.playWhenReady) {
             if (bufferingSince == 0L) bufferingSince = now
         } else bufferingSince = 0L
-        _isBuffering.value = waiting && buffering && online
+        _isBuffering.value = waiting && buffering
         _loadingMessage.value = when {
-            waiting && !online -> "Offline · waiting for connection"
             bufferingSince != 0L && now - bufferingSince >= 20_000 -> "Taking longer than usual · tap Pause to stop"
             _isBuffering.value -> "Buffering"
             player.playerError != null -> "Playback stopped · tap Play to retry"

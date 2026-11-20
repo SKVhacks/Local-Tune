@@ -93,6 +93,7 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
     val pipe by NerdStats.pipeline.collectAsState()
     val device = rememberOutputDeviceName()
     val route = rememberOutputRoute()
+    val btCodec by rememberBluetoothCodec(route, device)
     val bitPerfect by BitPerfectUsb.status.collectAsState()
     val mixerRate = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
     val volume = am?.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -177,6 +178,7 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
             "Output",
             listOfNotNull(
                 "Device" to device,
+                btCodec?.let { "Bluetooth codec" to it.toString() },
                 "AudioTrack" to listOfNotNull(pipe.outputEncoding ?: if (pb.floatOutput) "Float32" else "16-bit PCM", trackRate?.let(::khz)).joinToString(" / "),
                 mixerRate?.let { "System" to "AudioFlinger mixer, ${khz(it)}" },
                 when (val bp = bitPerfect) {

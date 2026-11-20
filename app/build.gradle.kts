@@ -97,6 +97,8 @@ kotlin {
 }
 
 dependencies {
+    // Reads the Bluetooth codec (SBC/AAC/LDAC…), which Android keeps from apps' public API.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:4.3")
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2026.03.01")
     implementation(composeBom)

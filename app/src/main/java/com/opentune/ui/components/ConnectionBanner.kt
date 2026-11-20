@@ -42,6 +42,14 @@ internal val LocalPageTopOffset = staticCompositionLocalOf { 0f }
 @Composable
 fun ConnectionBanner(modifier: Modifier = Modifier, reduceMotion: Boolean = false,
     onOnline: () -> Unit = {}, content: @Composable BoxScope.() -> Unit) {
+    // The app plays only what's on the phone, so being offline is nothing to tell anyone.
+    Box(modifier) { content() }
+}
+
+@Suppress("unused")
+@Composable
+private fun OnlineNotice(modifier: Modifier = Modifier, reduceMotion: Boolean = false,
+    onOnline: () -> Unit = {}, content: @Composable BoxScope.() -> Unit) {
     val context = LocalContext.current
     var notice by remember { mutableStateOf<Boolean?>(null) }
     var generation by remember { mutableIntStateOf(0) }

@@ -86,3 +86,9 @@ Media3's FFmpeg extension (Apache-2.0) as built and published by the
 [Jellyfin](https://github.com/jellyfin/jellyfin-androidx-media) project
 (`org.jellyfin.media3:media3-ffmpeg-decoder`). Its source, and how to
 build it, are at that address.
+
+## HiddenApiBypass
+
+- Project: https://github.com/LSPosed/AndroidHiddenApiBypass
+- License: Apache License 2.0
+- Used to read the Bluetooth codec in use (BluetoothA2dp.getCodecStatus), shown in the audio details.
