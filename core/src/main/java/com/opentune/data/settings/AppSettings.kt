@@ -365,6 +365,8 @@ data class InterfaceSettings(
      * so the screen is only redrawn where something really changes.
      */
     val coolPlayer: Boolean = true,
+    /** Artists without a picture in their songs get one from Deezer's free public search. */
+    val onlineArtistPictures: Boolean = true,
     /** The listener's name, for the Home page's greeting. */
     val yourName: String = "",
     /** A song folder's tall_animated_artwork video plays behind the player, as Apple Music shows it. */

@@ -92,3 +92,8 @@ build it, are at that address.
 - Project: https://github.com/LSPosed/AndroidHiddenApiBypass
 - License: Apache License 2.0
 - Used to read the Bluetooth codec in use (BluetoothA2dp.getCodecStatus), shown in the audio details.
+
+## Deezer artist pictures
+
+- Service: Deezer public API (https://developers.deezer.com/api), no key.
+- Used only when a song file carries no artist picture and "Artist pictures from the internet" is on: the artist's name is sent, and the returned photo is cached on the phone. Artist images belong to their owners.

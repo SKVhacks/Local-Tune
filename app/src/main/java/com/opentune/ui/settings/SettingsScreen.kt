@@ -849,6 +849,13 @@ private fun settingsSections(
                         icon = Icons.Rounded.BatterySaver,
                     )
                 },
+                Entry("Artist pictures from the internet", "artist image photo picture online deezer download") {
+                    ToggleRow(
+                        "Artist pictures from the internet", ui.onlineArtistPictures, { v -> AppSettings.updateUi { it.copy(onlineArtistPictures = v) } },
+                        summary = "When a song file has no artist picture, look the artist up on Deezer (only the name is sent). Each is fetched once and kept.",
+                        icon = Icons.Rounded.Person,
+                    )
+                },
                 Entry("Animated artwork", "apple tall animated artwork video motion mp4 canvas") {
                     ToggleRow(
                         "Animated artwork", ui.animatedArtwork, { v -> AppSettings.updateUi { it.copy(animatedArtwork = v) } },
