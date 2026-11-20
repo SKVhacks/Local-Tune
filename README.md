@@ -6,7 +6,8 @@ LocalTune plays the music files stored on your Android phone, with a clean, mode
 
 No account. No streaming. No ads. No tracking. Your music stays on your phone.
 
-<img width="1280" height="640" alt="banner" src="https://github.com/user-attachments/assets/ce88b90a-1b51-4700-ae5d-a08388ae2fa6" />
+<img width="1280" height="640" alt="121212" src="https://github.com/user-attachments/assets/c85c7455-30eb-4109-95aa-5c27200590a3" />
+
 
 
 ## Features
