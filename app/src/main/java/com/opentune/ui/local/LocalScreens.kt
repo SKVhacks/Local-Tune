@@ -339,7 +339,7 @@ fun LocalArtistsScreen(contentPadding: PaddingValues, nav: LocalNav) {
                         "${artist.tracks.size} songs",
                         artist.albums.size.takeIf { it > 0 }?.let { "$it albums" },
                     ).joinToString(" · "),
-                    art = artist.art,
+                    art = rememberArtistArt(artist),
                     icon = Icons.Rounded.Person,
                     round = true,
                     onClick = { nav.artist(artist.id) },
@@ -484,7 +484,7 @@ fun LocalSearchScreen(contentPadding: PaddingValues, actions: SongActions, nav: 
                 if (artists.isNotEmpty()) {
                     item { SectionHeader("Artists") }
                     items(artists, key = { "a:" + it.id }) { a ->
-                        LinkRow(a.name, "${a.tracks.size} songs", a.art, Icons.Rounded.Person, round = true) { nav.artist(a.id) }
+                        LinkRow(a.name, "${a.tracks.size} songs", rememberArtistArt(a), Icons.Rounded.Person, round = true) { nav.artist(a.id) }
                     }
                 }
                 if (albums.isNotEmpty()) {
@@ -621,7 +621,7 @@ fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: Lo
         if (artists.isNotEmpty()) item {
             Shelf("Artists", onSeeAll = nav.artists) {
                 items(artists, key = { it.id }) { a ->
-                    CoverTile(a.name, "${a.tracks.size} songs", a.art, Icons.Rounded.Person, round = true, width = SHELF_TILE) { nav.artist(a.id) }
+                    CoverTile(a.name, "${a.tracks.size} songs", rememberArtistArt(a), Icons.Rounded.Person, round = true, width = SHELF_TILE) { nav.artist(a.id) }
                 }
             }
         }
@@ -733,3 +733,17 @@ private fun ReplayCard(onClick: () -> Unit) {
 
 /** The width of a tile in a Home row. */
 private val SHELF_TILE = 148.dp
+
+/**
+ * The artist's own picture from inside their songs' tags (ArtistImages), or
+ * their cover art until one's found, and when there's none.
+ */
+@Composable
+private fun rememberArtistArt(artist: com.opentune.data.local.LocalMusic.Artist): String? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val known = remember(artist.id, artist.tracks.size) { com.opentune.data.local.ArtistImages.known(context, artist) }
+    val art by androidx.compose.runtime.produceState(known?.ifEmpty { null } ?: artist.art, artist.id, artist.tracks.size) {
+        if (known == null) com.opentune.data.local.ArtistImages.imageFor(context, artist)?.let { value = it }
+    }
+    return art
+}
