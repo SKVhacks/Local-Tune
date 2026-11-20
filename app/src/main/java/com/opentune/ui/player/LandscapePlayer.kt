@@ -87,6 +87,7 @@ import com.opentune.ui.formatTime
  * Tap the line being sung for all the lyrics, or use the queue button;
  * either takes the cover's place on the left, and the same tap goes back.
  */
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun LandscapePlayer(
     state: PlayerUiState,
@@ -117,26 +118,60 @@ internal fun LandscapePlayer(
     var showCast by remember { mutableStateOf(false) }
     var showOutput by remember { mutableStateOf(false) }
     val outputRoute = rememberOutputRoute()
-    Row(
+    // Lyrics or the queue taking the cover's place: the cover flies down into the
+    // small one beside the title (and back up), the left side widens smoothly to
+    // the pane, and the pane fades in behind it, as the upright player does.
+    val showSide = side != null
+    var lastSide by remember { mutableStateOf(side) }
+    if (side != null) lastSide = side
+    val slide = androidx.compose.animation.core.spring<androidx.compose.ui.unit.Dp>(dampingRatio = 1f, stiffness = 320f)
+    androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) {
+    val shared = this
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
             .padding(horizontal = 28.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (side != null) {
-            Box(Modifier.weight(1.1f).fillMaxHeight()) { side() }
-        } else {
-            ArtworkSwipeArea(
-                onSwipeNext = actions.next,
-                onSwipePrevious = actions.previous,
-                modifier = if (television) Modifier.weight(0.9f).aspectRatio(1f) else Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true),
+    val coverWidth = minOf(maxHeight, (maxWidth - 32.dp) * 0.5f)
+    val paneWidth = (maxWidth - 32.dp) * (1.1f / 2.1f)
+    val leftWidth by androidx.compose.animation.core.animateDpAsState(
+        if (showSide) paneWidth else coverWidth,
+        if (animate) slide else androidx.compose.animation.core.snap(),
+        label = "landscapeLeft",
+    )
+    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+        if (television) {
+            if (side != null) Box(Modifier.weight(1.1f).fillMaxHeight()) { side() }
+            else ArtworkSwipeArea(onSwipeNext = actions.next, onSwipePrevious = actions.previous, modifier = Modifier.weight(0.9f).aspectRatio(1f)) {
+                Artwork(song.thumbnailUrl.artworkAt(1080), Modifier.fillMaxSize().shadow(18.dp, RoundedCornerShape(16.dp)), RoundedCornerShape(16.dp))
+            }
+        } else Box(Modifier.width(leftWidth).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showSide,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(320, delayMillis = 120)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
+            ) { Box(Modifier.fillMaxSize()) { lastSide?.invoke() } }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !showSide,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
             ) {
-                Artwork(
-                    song.thumbnailUrl.artworkAt(1080),
-                    Modifier.fillMaxSize().shadow(18.dp, RoundedCornerShape(16.dp)),
-                    RoundedCornerShape(16.dp),
-                )
+                ArtworkSwipeArea(
+                    onSwipeNext = actions.next,
+                    onSwipePrevious = actions.previous,
+                    modifier = Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true),
+                ) {
+                    Artwork(
+                        song.thumbnailUrl.artworkAt(1080),
+                        with(shared) {
+                            Modifier.fillMaxSize()
+                                .sharedElement(rememberSharedContentState("landscapeCover"), this@AnimatedVisibility, clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(16.dp)))
+                                .shadow(18.dp, RoundedCornerShape(16.dp))
+                        },
+                        RoundedCornerShape(16.dp),
+                    )
+                }
             }
         }
         Spacer(Modifier.width(32.dp))
@@ -147,10 +182,19 @@ internal fun LandscapePlayer(
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.Top) {
                     // Lyrics or the queue in the cover's place: the cover stays in sight, small, before the title.
-                    if (side != null) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showSide,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 320f)),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkHorizontally(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 320f)),
+                    ) {
                         Artwork(
-                            song.thumbnailUrl.artworkAt(com.opentune.data.model.ROW_ART_PX),
-                            Modifier.padding(top = 4.dp, end = 14.dp).size(64.dp),
+                            // The same picture as the big cover, so the flight between them doesn't reload.
+                            song.thumbnailUrl.artworkAt(1080),
+                            with(shared) {
+                                Modifier.padding(top = 4.dp, end = 14.dp)
+                                    .sharedElement(rememberSharedContentState("landscapeCover"), this@AnimatedVisibility, clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(10.dp)))
+                                    .size(64.dp)
+                            },
                             RoundedCornerShape(10.dp),
                         )
                     }
@@ -220,6 +264,8 @@ internal fun LandscapePlayer(
                 }
             }
         }
+    }
+    }
     }
 }
 
