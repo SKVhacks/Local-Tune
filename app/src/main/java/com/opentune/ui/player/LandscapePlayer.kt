@@ -36,7 +36,6 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.SpeakerGroup
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Lyrics
@@ -188,10 +187,10 @@ internal fun LandscapePlayer(
                             SkipGlyph(true, nextRolls, scheme.onSurface.copy(alpha = if (state.hasNext) 1f else 0.35f), animate, Modifier.size(38.dp))
                         }
                     }
-                    val context = LocalContext.current
-                    if (!television) RoundIcon(Icons.Rounded.SpeakerGroup, "Choose where it plays", { openOutputSwitcher(context) })
+                    // Lyrics, then where it plays: the phone's own speaker shows the cast mark, as upright.
+                    if (!television) RoundIcon(Icons.Rounded.Lyrics, "Lyrics", onLyrics)
                     if (!television) RoundIcon(
-                        outputRoute.icon,
+                        if (outputRoute == OutputRoute.PHONE) Icons.Rounded.Cast else outputRoute.icon,
                         "Audio output",
                         { showOutput = true },
                         tint = if (outputRoute == OutputRoute.CAST) scheme.primary else scheme.onSurface,
