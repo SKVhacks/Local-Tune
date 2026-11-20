@@ -6,7 +6,8 @@ LocalTune plays the music files stored on your Android phone, with a clean, mode
 
 No account. No streaming. No ads. No tracking. Your music stays on your phone.
 
----
+<img width="1280" height="640" alt="banner" src="https://github.com/user-attachments/assets/ce88b90a-1b51-4700-ae5d-a08388ae2fa6" />
+
 
 ## Features
 
@@ -70,7 +71,7 @@ Each one is optional; LocalTune works without the ones you decline, minus that f
 LocalTune finds every song on your phone by itself. To get lyrics, covers and animated artwork too, keep each album in its own folder, with the extra files **next to the songs**:
 
 ```
-Internal shared storage/
+Music/
 └── K-C-J Pop/                        ← any folder name
     └── _Dall_/                       ← one folder per album
         ├── cover.jpg                 ← album cover
