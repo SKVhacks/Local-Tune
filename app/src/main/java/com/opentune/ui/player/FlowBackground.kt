@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -73,14 +72,14 @@ private fun FlowShader(artworkUrl: String?, moving: Boolean, gentle: Boolean, mo
         fade.snapTo(0f)
         fade.animateTo(1f, tween(1_400))
     }
-    // Seconds of drift, advancing only while playing, in steps.
-    val time by produceState(0f, moving, gentle) {
-        if (!moving) return@produceState
+    // Seconds of drift, advancing only while playing, in steps. One clock for every Flow on
+    // screen (the player's and the one over a tall animated cover), so they move as one.
+    LaunchedEffect(moving, gentle) {
+        if (!moving) return@LaunchedEffect
         val step = if (gentle) 66L else 33L
-        val start = withFrameNanos { it } - (value * 1e9f).toLong()
         while (true) {
+            FlowClock.tick(withFrameNanos { it })
             delay(step)
-            value = (withFrameNanos { it } - start) / 1e9f
         }
     }
     val nowShader = remember(current) { current?.let(::fieldShader) }
@@ -97,7 +96,7 @@ private fun FlowShader(artworkUrl: String?, moving: Boolean, gentle: Boolean, mo
                 shader.setFloatUniform("size", size.width, size.height)
                 shader.setFloatUniform("side", FIELD_PX.toFloat())
                 // Faster than the shader's own pace: at 1x the flow looked sluggish.
-                shader.setFloatUniform("t", time * FLOW_SPEED)
+                shader.setFloatUniform("t", FlowClock.seconds * FLOW_SPEED)
                 shader.setFloatUniform("fade", fade.value)
                 drawRect(brush)
             }
@@ -135,6 +134,23 @@ private fun soften(scaled: Bitmap): Bitmap {
     softenSquare(px, FIELD_PX, radius = 2, passes = 3)
     out.setPixels(px, 0, FIELD_PX, 0, 0, FIELD_PX, FIELD_PX)
     return out
+}
+
+/**
+ * The drift's time, shared. Each running Flow adds the real time since the clock was last
+ * moved, so two at once don't run it double; a pause longer than a moment isn't counted.
+ */
+internal object FlowClock {
+    var seconds by androidx.compose.runtime.mutableFloatStateOf(0f)
+        private set
+    private var last = 0L
+    fun tick(now: Long) {
+        if (last != 0L) {
+            val d = (now - last) / 1e9f
+            if (d > 0f && d < 0.25f) seconds += d
+        }
+        last = now
+    }
 }
 
 private const val FIELD_PX = 48

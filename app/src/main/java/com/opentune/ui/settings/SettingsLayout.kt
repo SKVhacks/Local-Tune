@@ -112,9 +112,9 @@ internal val SETTINGS_CATEGORIES = listOf(
         ),
     ),
     SettingsCategory(
-        "about", "About", "Source code and diagnostics", Icons.Rounded.Info,
+        "about", "About", "Credits, source code and diagnostics", Icons.Rounded.Info,
         listOf(
-            "About" to listOf("Source code"),
+            "About" to listOf("Made by", "Source code"),
             "Help" to listOf("Export diagnostics"),
         ),
     ),

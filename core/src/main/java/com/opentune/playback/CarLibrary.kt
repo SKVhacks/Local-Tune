@@ -38,7 +38,7 @@ class CarLibrary(private val context: Context) {
     /** Every item handed out, so a browser can look one up again by id. */
     private val known = ConcurrentHashMap<String, MediaItem>()
 
-    fun root(): MediaItem = folder(ROOT, "OpenTune", browsableStyle = MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+    fun root(): MediaItem = folder(ROOT, "LocalTune", browsableStyle = MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
 
     /** Extras for the root: search is supported, folders show as a grid and songs as a list. */
     fun rootExtras(): Bundle = Bundle().apply {

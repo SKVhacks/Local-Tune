@@ -41,7 +41,7 @@ object ListShare {
             if (s.artist.isNotBlank()) append(" – ").append(s.artist)
         }
         if (songs.size > MAX_SONGS) append("\n\n…and ").append(songs.size - MAX_SONGS).append(" more")
-        append("\n\nShared from OpenTune")
+        append("\n\nShared from LocalTune")
     }
 
     fun shareLocal(context: Context, name: String, songs: List<Song>) =

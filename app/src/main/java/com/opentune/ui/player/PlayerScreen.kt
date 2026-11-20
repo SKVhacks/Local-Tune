@@ -782,6 +782,9 @@ fun PlayerLayout(
                         songTall, true, MaterialTheme.colorScheme.surface, Modifier.fillMaxSize(),
                         visible = if (flight.active) flight.toSmall && tallHandle.frame == null else tallVideo != null,
                         handle = tallHandle,
+                        flowArt = current.thumbnailUrl.takeIf { theme.playerBackground == com.opentune.data.settings.PlayerBackground.FLOW },
+                        flowMoving = state.isPlaying && !state.ui.reduceAnimation,
+                        gentle = state.ui.coolPlayer,
                     )
                 }
             }
@@ -1312,6 +1315,7 @@ fun PlayerLayout(
                         p = { flight.progress }, toSmall = flight.toSmall, origin = origin,
                         base = rememberTallTones(state.canvasVideo, MaterialTheme.colorScheme.surface).first,
                         modifier = Modifier.testTag("pane-cover-flight"),
+                        flow = theme.playerBackground == com.opentune.data.settings.PlayerBackground.FLOW,
                     )
                 } else if (from != null && to != null) {
                     // Progress is read in the layer only: the finger or the runner, frame by frame.

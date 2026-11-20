@@ -149,7 +149,7 @@ private fun PermissionPrompt(modifier: Modifier = Modifier) {
         Icons.Rounded.LibraryMusic,
         "Play the music on your phone",
         modifier.padding(top = 32.dp),
-        message = "OpenTune needs permission to read your audio files. Nothing leaves your device.",
+        message = "LocalTune needs permission to read your audio files. Nothing leaves your device.",
         action = { Button(onClick = { launcher.launch(LocalMusic.permission) }) { Text("Allow access") } },
     )
 }

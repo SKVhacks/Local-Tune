@@ -335,7 +335,7 @@ fun SettingsScreen(
                 }
                 item {
                     Text(
-                        "OpenTune ${BuildConfig.VERSION_NAME} • GNU GPL v3 • Lyrics from LRCLIB",
+                        "LocalTune ${BuildConfig.VERSION_NAME} by $DEVELOPER_NAME • Based on OpenTune by justshivv • GNU GPL v3",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(28.dp),
@@ -428,7 +428,7 @@ private fun settingsSections(
             message = runCatching {
                 withContext(Dispatchers.IO) {
                     val doc = buildJsonObject {
-                        put("app", "OpenTune")
+                        put("app", "LocalTune")
                         put("version", 1)
                         put("settings", AppSettings.exportJson())
                         put("history", History.exportJson())
@@ -446,7 +446,7 @@ private fun settingsSections(
             message = runCatching {
                 val doc = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { AppSettings.json.parseToJsonElement(it.readBytes().decodeToString()) }
-                } as? JsonObject ?: error("not an OpenTune export")
+                } as? JsonObject ?: error("not an LocalTune export")
                 doc["settings"]?.let(AppSettings::importJson)
                 doc["history"]?.let(History::importJson)
                 doc["library"]?.let(LibraryStore::importJson)
@@ -610,7 +610,7 @@ private fun settingsSections(
                             is BitPerfectUsb.Status.Active -> "Exclusive on ${s.device}: ${s.format.ifEmpty { "${s.bits}-bit" }} at ${s.sampleRate / 1000.0} kHz, bit for bit"
                             is BitPerfectUsb.Status.NoMatch -> "On. The DAC lists no bit-perfect mode for ${s.sampleRate / 1000.0} kHz, so this song goes through Android's mixer"
                             BitPerfectUsb.Status.NoDac -> "On. Plug in a USB DAC and the music moves to it"
-                            else -> "The DAC plays only OpenTune, switched to each song's own sample rate and bit depth: no mixing, resampling or effects. Volume is applied by the app; at full volume the signal is bit-exact"
+                            else -> "The DAC plays only LocalTune, switched to each song's own sample rate and bit depth: no mixing, resampling or effects. Volume is applied by the app; at full volume the signal is bit-exact"
                         },
                         icon = Icons.Rounded.Usb,
                         enabled = BitPerfectUsb.supported,
@@ -625,7 +625,7 @@ private fun settingsSections(
                     NavRow(
                         "Background playback",
                         { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
-                        summary = if (ignoring) "Unrestricted: music keeps playing with the screen off" else "Restricted: if playback stops in the background, set OpenTune to Unrestricted",
+                        summary = if (ignoring) "Unrestricted: music keeps playing with the screen off" else "Restricted: if playback stops in the background, set LocalTune to Unrestricted",
                         icon = Icons.Rounded.BatteryChargingFull,
                     )
                 },
@@ -699,7 +699,7 @@ private fun settingsSections(
                     ToggleRow("Smart shuffle", pb.smartShuffle, { v -> AppSettings.updatePlayback { it.copy(smartShuffle = v) } }, summary = "Mixes a similar song in after every four. Tap the player's shuffle button twice, or long-press Shuffle on a playlist or album", icon = Icons.Rounded.AutoAwesome)
                 },
                 Entry("Resume when headphones connect", "bluetooth headset wired auto play resume connect car") {
-                    ToggleRow("Resume when headphones connect", pb.resumeOnConnect, { v -> AppSettings.updatePlayback { it.copy(resumeOnConnect = v) } }, summary = "Carries on playing when headphones are plugged in or a Bluetooth device connects, while OpenTune is open or in the notification", icon = com.opentune.ui.player.PlayerIcons.Headphones)
+                    ToggleRow("Resume when headphones connect", pb.resumeOnConnect, { v -> AppSettings.updatePlayback { it.copy(resumeOnConnect = v) } }, summary = "Carries on playing when headphones are plugged in or a Bluetooth device connects, while LocalTune is open or in the notification", icon = com.opentune.ui.player.PlayerIcons.Headphones)
                 },
                 Entry("Pause at zero volume", "mute volume down silent") {
                     ToggleRow("Pause at zero volume", pb.pauseAtZeroVolume, { v -> AppSettings.updatePlayback { it.copy(pauseAtZeroVolume = v) } }, summary = "Pauses when the volume is turned all the way down and plays again when it comes back up", icon = Icons.AutoMirrored.Rounded.VolumeOff)
@@ -763,7 +763,7 @@ private fun settingsSections(
                         value = com.opentune.ui.theme.AppLanguages.selected(context).label)
                 },
                 Entry("App icon", "launcher icon design glass pearl midnight rose ocean") {
-                    NavRow("App icon", { appIconDialog = true }, summary = "Choose the OpenTune icon on your home screen", icon = Icons.Rounded.Palette)
+                    NavRow("App icon", { appIconDialog = true }, summary = "Choose the LocalTune icon on your home screen", icon = Icons.Rounded.Palette)
                 },
                 Entry("Fonts & readability", "font typeface text weight bold thin ttf otf import custom") {
                     NavRow("Fonts & readability", { fontDialog = true }, summary = "Built-in fonts, text weight and your own font file", icon = Icons.Rounded.TextFields, value = theme.font.label)
@@ -798,7 +798,7 @@ private fun settingsSections(
                         "Opening animation",
                         ui.openingAnimation,
                         { v -> AppSettings.updateUi { it.copy(openingAnimation = v) } },
-                        summary = "When OpenTune starts, the screen dives into the logo and the app comes through it",
+                        summary = "When LocalTune starts, the screen dives into the logo and the app comes through it",
                         icon = Icons.Rounded.AutoAwesome,
                     )
                 },
@@ -1075,17 +1075,22 @@ private fun settingsSections(
         Section(
             "Advanced",
             listOf(
+                Entry("Made by", "credits developer author portfolio about me skvhacks") {
+                    NavRow("Made by $DEVELOPER_NAME", {
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, DEVELOPER_PORTFOLIO.toUri())) }
+                    }, summary = "Designed and built by $DEVELOPER_NAME. Tap to see my portfolio", icon = Icons.Rounded.Person)
+                },
                 Entry("Source code", "github open source license gpl") {
                     NavRow("Source code", {
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/justshivv/Opentune".toUri())) }
-                    }, summary = "github.com/justshivv/Opentune · GPL v3", icon = Icons.Rounded.Code)
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri())) }
+                    }, summary = "Based on OpenTune by justshivv · GPL v3", icon = Icons.Rounded.Code)
                 },
                 Entry("Export diagnostics", "log share troubleshooting bug report") {
                     NavRow("Export diagnostics", {
                         scope.launch {
                             val log = LogExport.recent()
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                                .putExtra(Intent.EXTRA_SUBJECT, "OpenTune ${BuildConfig.VERSION_NAME} log")
+                                .putExtra(Intent.EXTRA_SUBJECT, "LocalTune ${BuildConfig.VERSION_NAME} log")
                                 .putExtra(Intent.EXTRA_TEXT, log)
                             context.startActivity(Intent.createChooser(send, "Share log"))
                         }
@@ -1114,3 +1119,9 @@ private fun SpotifyMark() {
     // Spotify's own mark, in its own colours.
     androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.opentune.R.drawable.ic_spotify), "Spotify", Modifier.size(40.dp))
 }
+
+/** Who made LocalTune, and where to see their work: shown in Settings › About. */
+internal const val DEVELOPER_NAME = "SKVhacks"
+internal const val DEVELOPER_PORTFOLIO = "https://github.com/SKVhacks"
+/** This app's own source, as the GPL asks; the original it's built on is credited beside it. */
+private const val SOURCE_URL = "https://github.com/SKVhacks/opentune-local"

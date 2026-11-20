@@ -193,7 +193,9 @@ fun PlayerBackdrop(
     // still colours, the ones its fade ends in, so the glass buttons pick them up and
     // nothing here moves while it plays. Going to and from it, the two cross-fade
     // rather than switching at once; once it's fully in, the usual backdrop isn't drawn.
-    val tallOn = fullCover && tallArtwork != null
+    // With Flow, the colourful moving background stays under the tall cover (which blends
+    // into a copy of it, see TallArtwork), as Apple Music's does.
+    val tallOn = fullCover && tallArtwork != null && style != PlayerBackground.FLOW
     var lastTall by remember { mutableStateOf<String?>(null) }
     if (tallArtwork != null) lastTall = tallArtwork
     val tallAlpha by androidx.compose.animation.core.animateFloatAsState(

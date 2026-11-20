@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -65,6 +66,13 @@ internal fun TallArtwork(
     visible: Boolean = true,
     /** Lets the player take the frame on screen for the shrink into the lyrics header and back. */
     handle: TallHandle? = null,
+    /**
+     * The cover for the Flow background, when that's the player's background: the video's
+     * lower part then melts into the same moving colours as the lyrics page, not a still colour.
+     */
+    flowArt: String? = null,
+    flowMoving: Boolean = false,
+    gentle: Boolean = false,
 ) {
     val context = LocalContext.current
     val tones = rememberTallTones(url, fallback)
@@ -110,7 +118,9 @@ internal fun TallArtwork(
     }
     val aspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 3f / 4f
     handle?.aspect = aspect
-    androidx.compose.foundation.layout.Column(modifier.graphicsLayer { alpha = if (visible) 1f else 0f }) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.graphicsLayer { alpha = if (visible) 1f else 0f }) {
+    val videoBottom = constraints.maxWidth / aspect
+    androidx.compose.foundation.layout.Column(Modifier.matchParentSize()) {
     Box(Modifier.fillMaxWidth().aspectRatio(aspect)) {
         AndroidView(
             factory = { c -> SurfaceView(c).also { player.setVideoSurfaceView(it); handle?.view = it } },
@@ -119,13 +129,31 @@ internal fun TallArtwork(
             update = { v -> v.translationX = if (visible) 0f else -OFF_SCREEN_PX },
             modifier = Modifier.matchParentSize(),
         )
-        // The lower part fades into the backdrop's colour, and a light scrim at the top keeps the status line readable.
-        Box(Modifier.matchParentSize().background(tallFade(base)))
+        // The lower part fades into the backdrop's colour (or, with Flow, into the moving
+        // colours drawn over it below), and a light scrim at the top keeps the status line readable.
+        Box(Modifier.matchParentSize().background(if (flowArt != null) TALL_SCRIM else tallFade(base)))
         // Until the first frame, the backdrop's colour; then it lifts.
         if (shown < 1f) Box(Modifier.matchParentSize().background(base.copy(alpha = 1f - shown)))
     }
     // Below the picture, its own colours: the edge it fades into, deepening to its main colour.
-    Box(Modifier.fillMaxWidth().weight(1f).background(Brush.verticalGradient(0f to base, 1f to deep)))
+    if (flowArt == null) Box(Modifier.fillMaxWidth().weight(1f).background(Brush.verticalGradient(0f to base, 1f to deep)))
+    }
+    // Flow over the whole screen, clear over the picture and coming in over its lower part:
+    // the same moving colours as underneath and on the lyrics page, on the same clock.
+    if (flowArt != null) {
+        FlowBackground(
+            flowArt, flowMoving, gentle,
+            Modifier.matchParentSize()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, startY = videoBottom * 0.55f, endY = videoBottom * 0.97f),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
+        )
+    }
     }
 }
 
@@ -203,6 +231,9 @@ private fun darkened(c: Int, most: Float): Int {
 /** Far enough off any screen to be out of sight. */
 private const val OFF_SCREEN_PX = 100_000f
 
+/** Just the light scrim at the top, for when the picture melts into Flow instead. */
+private val TALL_SCRIM = Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.15f to Color.Transparent)
+
 /** The tall cover's own fade: a light scrim at the top, its lower part going into [base]. */
 internal fun tallFade(base: Color) = Brush.verticalGradient(
     0f to Color.Black.copy(alpha = 0.3f),
@@ -257,6 +288,8 @@ internal fun TallFlight(
     /** The colour the player's video fades into, so the flying one fades the same way. */
     base: Color,
     modifier: Modifier = Modifier,
+    /** The player's background is Flow: the flying frame's lower part fades out to it instead. */
+    flow: Boolean = false,
 ) {
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     fun smallness() = p().coerceIn(0f, 1f).let { if (toSmall) it else 1f - it }
@@ -275,11 +308,26 @@ internal fun TallFlight(
                 clip = true
             },
     ) {
-        androidx.compose.foundation.Image(frame, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        androidx.compose.foundation.Image(
+            frame, null,
+            Modifier.fillMaxSize().then(
+                if (!flow) Modifier else Modifier
+                    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        val a = ((1f - smallness()) / 0.25f).coerceIn(0f, 1f)
+                        drawRect(
+                            Brush.verticalGradient(0.55f to Color.Black, 0.97f to Color.Black.copy(alpha = 1f - a)),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                        )
+                    },
+            ),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
         // The same fade as on the player, there for nearly the whole flight (whole from the
         // first quarter of the way out), so the picture and the colours below it are one
         // surface as it grows, not a hard-edged picture that gets its fade on landing.
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = ((1f - smallness()) / 0.25f).coerceIn(0f, 1f) }.background(tallFade(base)))
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = ((1f - smallness()) / 0.25f).coerceIn(0f, 1f) }.background(if (flow) TALL_SCRIM else tallFade(base)))
         coil3.compose.AsyncImage(
             cover, null,
             Modifier.fillMaxSize().graphicsLayer {
