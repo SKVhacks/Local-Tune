@@ -65,6 +65,40 @@ Each one is optional; LocalTune works without the ones you decline, minus that f
 
 ---
 
+## Organising your music
+
+LocalTune finds every song on your phone by itself. To get lyrics, covers and animated artwork too, keep each album in its own folder, with the extra files **next to the songs**:
+
+```
+Internal shared storage/
+└── K-C-J Pop/                        ← any folder name
+    └── _Dall_/                       ← one folder per album
+        ├── cover.jpg                 ← album cover
+        ├── tall_animated_artwork.mp4 ← full-screen animated artwork
+        ├── square_animated_artwork.mp4
+        ├── Virtual Angel.flac        ← the song
+        ├── Virtual Angel.ttml        ← its lyrics (word-by-word)
+        ├── Unf_Air.flac
+        └── Unf_Air.lrc               ← its lyrics (line-by-line)
+```
+
+| File | What it does |
+|---|---|
+| `Song.flac` (or `.mp3`, `.m4a`, `.wav`, `.opus`…) | The song. Title, artist and album come from its tags. |
+| `Song.ttml` | Lyrics with **word or syllable timing**, background vocals and duets (the format Apple Music uses). Must have **exactly the same name** as the song. |
+| `Song.lrc` | **Line-timed** lyrics (enhanced word-timed LRC works too). Same name as the song. |
+| `cover.jpg` / `folder.jpg` | The album cover, when it isn't embedded in the song files. A cover inside the files is used first. |
+| `tall_animated_artwork.mp4` | Plays full-screen behind the player for every song in the folder. Any name containing "tall animated artwork" works (`.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`). |
+| `square_animated_artwork.mp4` | Not used yet: it's ignored, so it's fine to keep it. |
+
+**Tips**
+- **Lyrics need one extra step:** Android doesn't let apps read text files beside your music on their own, so open **Settings › Lyrics › Lyrics folders** and pick your music folder once. LocalTune remembers it.
+- Lyrics can also go in a `Lyrics` folder inside the album folder, or anywhere in a lyrics folder you picked, named `Artist - Title.lrc` or `Title.lrc`.
+- If a song has both, `.ttml` is used before `.lrc`.
+- Animated artwork needs the **Photos and videos** permission, and can be turned off in **Settings › Appearance › Animated artwork**.
+
+---
+
 ## Backup and restore
 
 Keep your library safe, or move it to a new phone, from **Settings › Music and storage › Backup**.
