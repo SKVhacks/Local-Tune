@@ -411,18 +411,7 @@ fun PlayerLayout(
     val device = rememberOutputDeviceName()
     val outputRoute = rememberOutputRoute()
     val sleepLabel = sleepTimerLabel()
-    // Animated artwork needs to read videos: asked for once, the first time the player
-    // opens with it on, and looked up again as soon as it's allowed.
-    val videoAccess = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { ok -> if (ok) com.opentune.data.local.AnimatedArtwork.refresh() }
-    LaunchedEffect(state.ui.animatedArtwork) {
-        if (!state.ui.animatedArtwork || com.opentune.data.local.AnimatedArtwork.allowed(context)) return@LaunchedEffect
-        val prefs = context.getSharedPreferences("animated_artwork", android.content.Context.MODE_PRIVATE)
-        if (prefs.getBoolean("asked", false)) return@LaunchedEffect
-        prefs.edit().putBoolean("asked", true).apply()
-        runCatching { videoAccess.launch(com.opentune.data.local.AnimatedArtwork.permission) }
-    }
+    // Video access for animated artwork is asked for when the app opens (StartupPermissions).
 
     // Drag down anywhere outside the lyrics and queue lists to close.
     // Plain state, written straight from the drag: the release spring then

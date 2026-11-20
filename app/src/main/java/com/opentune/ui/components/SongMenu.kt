@@ -156,6 +156,10 @@ fun SongMenuSheet(
                 QuickAction(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Liked" else "Like", active = isLiked) {
                     LibraryStore.setLiked(song, !isLiked)
                 }
+                if (actions != null) {
+                    QuickAction(Icons.AutoMirrored.Rounded.PlaylistPlay, "Play next", active = false) { actions.playNext(song); close() }
+                    QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue", active = false) { actions.addToQueue(song); close() }
+                }
                 QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Playlist", active = false) { pickPlaylist = true }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -166,24 +170,10 @@ fun SongMenuSheet(
         val close: () -> Unit = { card?.close() ?: onDismiss() }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             if (actions != null) {
-                MenuRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Play next") { actions.playNext(song); close() }
-                MenuRow(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { actions.addToQueue(song); close() }
                 keepIn?.let { p -> MenuRow(Icons.AutoMirrored.Rounded.PlaylistAdd, "Keep in playlist") { close(); actions.keepInPlaylist(song, p.id) } }
-                // Every credited artist has a page: "A & B" offers both.
-                val names = LocalMusic.splitArtists(song.artist)
-                if (names.size > 1 && actions.viewArtistNamed != null) {
-                    names.forEach { name -> MenuRow(Icons.Rounded.Person, "View $name") { close(); actions.viewArtistNamed.invoke(song, name) } }
-                } else when {
-                    actions.viewArtist != null -> MenuRow(Icons.Rounded.Person, "View artist") { close(); actions.viewArtist.invoke(song) }
-                    song.artistId != null -> MenuRow(Icons.Rounded.Person, "View artist") { close(); actions.openArtist(song.artistId!!) }
-                }
-                when {
-                    song.albumId != null -> MenuRow(Icons.Rounded.Album, "Open album") { close(); actions.openAlbum(song.albumId!!) }
-                    actions.viewAlbum != null -> MenuRow(Icons.Rounded.Album, "Open album") { close(); actions.viewAlbum.invoke(song) }
-                }
             }
             if (top != null || tools != null) {
-                HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                if (keepIn != null && actions != null) HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 top?.invoke(this, close)
                 tools?.invoke(this, close)
             }
@@ -212,7 +202,7 @@ private fun QuickAction(icon: ImageVector, label: String, active: Boolean, progr
             .animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1_200, easing = androidx.compose.animation.core.LinearEasing)), label = "downloadWaitSpin")
     } else null
     Column(
-        Modifier.width(76.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
+        Modifier.width(82.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(

@@ -10,11 +10,11 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
+import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +40,11 @@ object BluetoothCodec {
 
     val permission: String =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_CONNECT else Manifest.permission.BLUETOOTH
+
+    private val _changes = kotlinx.coroutines.flow.MutableStateFlow(0)
+    /** Bumped when the permission is granted, so the codec is read again. */
+    val changes = _changes.asStateFlow()
+    fun refresh() { _changes.value++ }
 
     fun allowed(context: Context) =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
@@ -114,18 +119,9 @@ object BluetoothCodec {
 @Composable
 internal fun rememberBluetoothCodec(route: OutputRoute, device: String?): State<BluetoothCodec.Info?> {
     val context = LocalContext.current
-    val granted = remember { mutableIntStateOf(0) }
-    val ask = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { ok -> if (ok) granted.intValue++ }
-    LaunchedEffect(route) {
-        if (route != OutputRoute.BLUETOOTH || BluetoothCodec.allowed(context)) return@LaunchedEffect
-        val prefs = context.getSharedPreferences("bluetooth_codec", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("asked", false)) return@LaunchedEffect
-        prefs.edit().putBoolean("asked", true).apply()
-        runCatching { ask.launch(BluetoothCodec.permission) }
-    }
-    return produceState<BluetoothCodec.Info?>(null, route, device, granted.intValue) {
+    // The permission is asked for when the app opens; granting it reads the codec again.
+    val granted by BluetoothCodec.changes.collectAsState()
+    return produceState<BluetoothCodec.Info?>(null, route, device, granted) {
         value = if (route == OutputRoute.BLUETOOTH) BluetoothCodec.current(context) else null
     }
 }

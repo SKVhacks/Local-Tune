@@ -124,7 +124,27 @@ private fun rememberLibrary(): Pair<Boolean, LocalMusic.Library?> {
 /** "Allow access" in place of a page, until the app may read the phone's music. */
 @Composable
 private fun PermissionPrompt(modifier: Modifier = Modifier) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) LocalMusic.rescan(0) }
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    // Refused for good (Android stops showing its dialog): open the app's settings page instead.
+    val openSettings = {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+        Unit
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) LocalMusic.rescan(0)
+        else if (activity != null && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, LocalMusic.permission)) openSettings()
+    }
+    // Comes back from the settings page with access given: read the music.
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        if (LocalMusic.hasPermission(context)) LocalMusic.rescan(0)
+        onPauseOrDispose { }
+    }
     MessageState(
         Icons.Rounded.LibraryMusic,
         "Play the music on your phone",

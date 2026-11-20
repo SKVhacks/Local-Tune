@@ -116,6 +116,7 @@ private const val SEARCH_ROUTE = "search"
 
 @Composable
 fun AppRoot(vm: PlayerViewModel) {
+    StartupPermissions()
     val nav = rememberNavController()
     val song by vm.currentSong.collectAsState()
     val isPlaying by vm.isPlaying.collectAsState()
