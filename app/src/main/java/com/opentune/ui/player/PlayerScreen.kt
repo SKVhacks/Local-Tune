@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -1456,20 +1457,27 @@ private fun RowScope.TitleRow(song: Song, liked: Boolean, onLike: () -> Unit, on
             menu.viewAlbum != null -> ({ menu.viewAlbum.invoke(song) })
             else -> null
         }
+        // Tapping the title or an artist opens a sheet with the album and every artist.
+        var linking by remember { mutableStateOf(false) }
+        val named = menu?.viewArtistNamed
+        if (linking) SongLinksSheet(
+            song,
+            onAlbum = openAlbum,
+            onArtist = named?.let { open -> { name: String -> open(song, name) } },
+            onDismiss = { linking = false },
+        )
         MarqueeText(
             song.title,
-            Modifier.fillMaxWidth().then(if (openAlbum != null) Modifier.clickable(onClickLabel = "Open album", onClick = openAlbum) else Modifier),
+            Modifier.fillMaxWidth().clickable(onClickLabel = "Album and artists") { linking = true },
             style = when {
                 apple -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 compact -> MaterialTheme.typography.titleLarge
                 else -> MaterialTheme.typography.headlineSmall
             },
         )
-        // Each artist's name opens their own page.
-        val named = menu?.viewArtistNamed
         com.opentune.ui.components.ArtistLinks(
             song.artist,
-            onArtist = named?.let { open -> { name: String -> open(song, name) } },
+            onArtist = { _: String -> linking = true },
             explicit = song.isExplicit == true,
             style = if (apple) MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
             else MaterialTheme.typography.titleMedium,
@@ -1873,4 +1881,40 @@ private fun Modifier.widenBy(by: androidx.compose.ui.unit.Dp) = layout { measura
     val placeable = measurable.measure(wide)
     val width = (placeable.width - extra).coerceAtLeast(0)
     layout(width, placeable.height) { placeable.place(-extra / 2, 0) }
+}
+
+/**
+ * The sheet a tap on the player's title or artist opens: the song's album, then
+ * each of its artists, every one a way to their page.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SongLinksSheet(song: Song, onAlbum: (() -> Unit)?, onArtist: ((String) -> Unit)?, onDismiss: () -> Unit) {
+    val artists = remember(song.artist) { com.opentune.data.local.LocalMusic.splitArtists(song.artist).ifEmpty { listOf(song.artist) } }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            if (onAlbum != null) LinkSheetRow(
+                icon = Icons.Rounded.Album, label = "View album", detail = song.albumName ?: song.title,
+                art = song.thumbnailUrl,
+            ) { onDismiss(); onAlbum() }
+            if (onArtist != null) artists.forEach { name ->
+                LinkSheetRow(icon = Icons.Rounded.Person, label = "View artist", detail = name, art = null, round = true) { onDismiss(); onArtist(name) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkSheetRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, detail: String, art: String?, round: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.opentune.ui.components.Artwork(art, Modifier.size(48.dp), shape = if (round) CircleShape else MaterialTheme.shapes.small, placeholder = icon)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detail, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
