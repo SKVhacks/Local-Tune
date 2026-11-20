@@ -1449,7 +1449,9 @@ private fun RowScope.TitleRow(song: Song, liked: Boolean, onLike: () -> Unit, on
         val menu = LocalSongMenu.current
         // Its album id when the song carries one, else the album is looked up on the tap.
         val openAlbum: (() -> Unit)? = when {
-            menu == null || song.videoId.startsWith("local:") -> null
+            menu == null -> null
+            // A song on the phone: its album is found from the library.
+            song.videoId.startsWith("local:") && menu.viewAlbum != null -> ({ menu.viewAlbum.invoke(song) })
             song.albumId != null -> ({ menu.openAlbum(song.albumId!!) })
             menu.viewAlbum != null -> ({ menu.viewAlbum.invoke(song) })
             else -> null
@@ -1464,7 +1466,7 @@ private fun RowScope.TitleRow(song: Song, liked: Boolean, onLike: () -> Unit, on
             },
         )
         // Each artist's name opens their own page.
-        val named = menu?.viewArtistNamed?.takeIf { !song.videoId.startsWith("local:") }
+        val named = menu?.viewArtistNamed
         com.opentune.ui.components.ArtistLinks(
             song.artist,
             onArtist = named?.let { open -> { name: String -> open(song, name) } },

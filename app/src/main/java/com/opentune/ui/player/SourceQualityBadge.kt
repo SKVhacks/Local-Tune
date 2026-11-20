@@ -55,6 +55,10 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
     val label = qualityStatusLabel(source, if (source != null) format else null, upgrading == mediaId)
     val colors = MaterialTheme.colorScheme
     val ui by com.opentune.data.settings.AppSettings.ui.collectAsState()
+    // Over Bluetooth, the codec on the link after the tier: "Lossless - LDAC".
+    val route = rememberOutputRoute()
+    val codec by rememberBluetoothCodec(route, rememberOutputDeviceName())
+    val linkCodec = codec?.name
     // A thin light line runs across the label, but only for lossless and Hi-Res
     // lossless: lossy streams keep a plain grey label.
     val lossless = isHighestQuality(source, format)
@@ -72,7 +76,7 @@ internal fun SourceQualityBadge(mediaId: String, format: AudioFormatInfo?, onCli
             Spacer(Modifier.width(5.dp))
         }
         // Only the tier ("Lossless", "Hi-Res Lossless"); the bit depth and rate are a tap away, on the signal path.
-        Text(label.substringBefore(" · "), style = MaterialTheme.typography.labelMedium,
+        Text(label.substringBefore(" · ") + (linkCodec?.let { " - $it" } ?: ""), style = MaterialTheme.typography.labelMedium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.drawWithCache {
                 onDrawWithContent {
