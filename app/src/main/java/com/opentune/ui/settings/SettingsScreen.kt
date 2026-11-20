@@ -208,7 +208,8 @@ private class Placed(val entry: Entry, val category: SettingsCategory, val group
 @Composable
 fun SettingsScreen(
     contentPadding: PaddingValues,
-    onBack: () -> Unit,
+    /** Null when Settings is a tab of its own: no way back to show. */
+    onBack: (() -> Unit)?,
     onOpenEqualizer: () -> Unit,
     onOpenReplay: () -> Unit,
     onOpenWrapped: () -> Unit = {},

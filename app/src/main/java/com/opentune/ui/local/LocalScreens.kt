@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -100,6 +101,10 @@ class LocalNav(
     val playlist: (String) -> Unit,
     val history: () -> Unit,
     val replay: () -> Unit,
+    /** Every artist, and the full library page (playlists and all): the Home page's "See all". */
+    val artists: () -> Unit = {},
+    val library: () -> Unit = {},
+    val albums: () -> Unit = {},
 )
 
 /** The library as it is now; asks for the audio permission first when it hasn't been given. */
@@ -139,7 +144,6 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 private fun RootActions(nav: LocalNav) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GlassIconButton(Icons.Rounded.Search, "Search", nav.search, size = 44.dp)
-        GlassIconButton(Icons.Rounded.Settings, "Settings", nav.settings, size = 44.dp)
     }
 }
 
@@ -571,3 +575,161 @@ private fun LinkRow(title: String, subtitle: String, art: String?, icon: ImageVe
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+// ---- Home -------------------------------------------------------------------------
+
+/**
+ * The Home page: a greeting with the listener's name, then a row of each part
+ * of the library, side-scrolling, each with a "See all": recently played,
+ * artists, playlists, liked songs, albums and folders; and a way into Replay.
+ * Rows with nothing in them are left out (Playlists keeps its "New playlist").
+ */
+@Composable
+fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: LocalNav) {
+    val (allowed, library) = rememberLibrary()
+    val ui by com.opentune.data.settings.AppSettings.ui.collectAsState()
+    val records by com.opentune.data.history.History.records.collectAsState()
+    val likedRefs by LibraryStore.liked.collectAsState()
+    val liked = remember(likedRefs) { likedRefs.map { it.toSong() } }
+    val playlists by LibraryStore.playlists.collectAsState()
+    val recents = remember(records) { com.opentune.data.history.History.recents(records, limit = 20) }
+    val artists = remember(library) { library?.artists.orEmpty().sortedByDescending { it.tracks.size }.take(20) }
+    val albums = remember(library) { library?.albums.orEmpty().take(20) }
+    val folders = remember(library) { library?.folders.orEmpty().sortedByDescending { it.tracks.size }.take(20) }
+    var naming by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
+    if (naming) com.opentune.ui.library.NameDialog("Your name", ui.yourName, onDismiss = { naming = false }) { name ->
+        naming = false
+        com.opentune.data.settings.AppSettings.updateUi { it.copy(yourName = name.trim()) }
+    }
+    if (creating) com.opentune.ui.library.NameDialog("New playlist", "", onDismiss = { creating = false }) { name ->
+        creating = false
+        nav.playlist(LibraryStore.createPlaylist(name))
+    }
+    if (!allowed) { PermissionPrompt(Modifier.padding(contentPadding)); return }
+    LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
+        item { Greeting(ui.yourName) { naming = true } }
+        if (recents.isNotEmpty()) item {
+            Shelf("Recently played", onSeeAll = nav.history) {
+                itemsIndexed(recents, key = { i, s -> "r$i${s.videoId}" }) { i, song ->
+                    CoverTile(song.title, song.artist, song.thumbnailUrl, Icons.Rounded.History, width = SHELF_TILE) {
+                        actions.playAll(recents, i, false, "Recently played")
+                    }
+                }
+            }
+        }
+        if (artists.isNotEmpty()) item {
+            Shelf("Artists", onSeeAll = nav.artists) {
+                items(artists, key = { it.id }) { a ->
+                    CoverTile(a.name, "${a.tracks.size} songs", a.art, Icons.Rounded.Person, round = true, width = SHELF_TILE) { nav.artist(a.id) }
+                }
+            }
+        }
+        item {
+            Shelf("Playlists", onSeeAll = nav.library.takeIf { playlists.isNotEmpty() }) {
+                items(playlists, key = { it.id }) { p ->
+                    CoverTile(p.name, "${p.songs.size} songs", p.songs.firstOrNull()?.thumbnailUrl, Icons.AutoMirrored.Rounded.QueueMusic, width = SHELF_TILE) { nav.playlist(p.id) }
+                }
+                item(key = "new") {
+                    CoverTile("New playlist", "", null, Icons.Rounded.Add, width = SHELF_TILE) { creating = true }
+                }
+            }
+        }
+        if (liked.isNotEmpty()) item {
+            Shelf("Liked songs", onSeeAll = nav.liked) {
+                itemsIndexed(liked.take(20), key = { _, s -> "l${s.videoId}" }) { i, song ->
+                    CoverTile(song.title, song.artist, song.thumbnailUrl, Icons.Rounded.Favorite, width = SHELF_TILE) {
+                        actions.playAll(liked, i, false, "Liked songs")
+                    }
+                }
+            }
+        }
+        if (albums.isNotEmpty()) item {
+            Shelf("Albums", onSeeAll = nav.albums) {
+                items(albums, key = { it.id }) { a ->
+                    CoverTile(a.title, a.artist, a.art, Icons.Rounded.Album, width = SHELF_TILE) { nav.album(a.id) }
+                }
+            }
+        }
+        if (folders.isNotEmpty()) item {
+            Shelf("Folders", onSeeAll = nav.folders) {
+                items(folders, key = { it.path }) { f ->
+                    CoverTile(f.name, "${f.tracks.size} songs", f.tracks.firstOrNull()?.song?.thumbnailUrl, Icons.Rounded.Folder, width = SHELF_TILE) { nav.folder(f.path) }
+                }
+            }
+        }
+        item { ReplayCard(nav.replay) }
+    }
+}
+
+/** "Good evening" and the listener's name, or a nudge to add it; a tap changes it. */
+@Composable
+private fun Greeting(name: String, onName: () -> Unit) {
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val hello = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..21 -> "Good evening"
+        else -> "Good night"
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
+            .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
+            .clip12()
+            .clickable(onClick = onName),
+    ) {
+        Text(hello, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text(
+            name.ifBlank { "Tap to add your name" },
+            style = MaterialTheme.typography.headlineSmall,
+            color = if (name.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+/** A titled row of tiles that scrolls sideways, with "See all" when there's a page of them. */
+@Composable
+private fun Shelf(title: String, onSeeAll: (() -> Unit)?, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (onSeeAll != null) androidx.compose.material3.TextButton(onClick = onSeeAll) { Text("See all") }
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            content = content,
+        )
+    }
+}
+
+/** The way into Replay: what's been played most. */
+@Composable
+private fun ReplayCard(onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .then(Modifier.background(MaterialTheme.colorScheme.secondaryContainer))
+            .clickable(onClick = onClick)
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.BarChart, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+            Text("Replay", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            Text("Your most played songs, artists and albums", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
+}
+
+/** The width of a tile in a Home row. */
+private val SHELF_TILE = 148.dp

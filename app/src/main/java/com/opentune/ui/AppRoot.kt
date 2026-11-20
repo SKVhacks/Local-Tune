@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.unit.toSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
@@ -101,10 +105,10 @@ object TabEvents {
 }
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    HOME("songs", "Songs", Icons.Outlined.MusicNote, Icons.Rounded.MusicNote),
+    HOME("home", "Home", Icons.Outlined.Home, Icons.Rounded.Home),
+    SONGS("songs", "Songs", Icons.Outlined.MusicNote, Icons.Rounded.MusicNote),
     ALBUMS("albums", "Albums", Icons.Outlined.Album, Icons.Rounded.Album),
-    ARTISTS("artists", "Artists", Icons.Outlined.Person, Icons.Rounded.Person),
-    LIBRARY("library", "Library", Icons.Outlined.LibraryMusic, Icons.Rounded.LibraryMusic),
+    SETTINGS("settings", "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 }
 
 private const val SEARCH_ROUTE = "search"
@@ -241,6 +245,9 @@ fun AppRoot(vm: PlayerViewModel) {
         playlist = { id -> nav.navigate("playlist/${Uri.encode(id)}") },
         history = { nav.navigate("history") },
         replay = { nav.navigate("replay") },
+        artists = { nav.navigate("artists") },
+        library = { nav.navigate("library") },
+        albums = { nav.navigate("albums") { popUpTo("home"); launchSingleTop = true } },
     ) }
     // Handed in from outside: the assistant's "play …", an audio file opened with the app, the notification.
     val incoming by Links.incoming.collectAsState()
@@ -467,10 +474,12 @@ fun AppRoot(vm: PlayerViewModel) {
                     popEnterTransition = { PageMotion.popEnter(chromeUi.pageTransition, chromeUi.reduceAnimation) },
                     popExitTransition = { PageMotion.popExit(chromeUi.pageTransition, chromeUi.reduceAnimation) },
                 ) {
-                    page(Tab.HOME.route) { com.opentune.ui.local.LocalSongsScreen(content, actions, localNav) }
+                    page(Tab.HOME.route) { com.opentune.ui.local.LocalHomeScreen(content, actions, localNav) }
+                    page(Tab.SONGS.route) { com.opentune.ui.local.LocalSongsScreen(content, actions, localNav) }
                     page(Tab.ALBUMS.route) { com.opentune.ui.local.LocalAlbumsScreen(content, localNav) }
-                    page(Tab.ARTISTS.route) { com.opentune.ui.local.LocalArtistsScreen(content, localNav) }
-                    page(Tab.LIBRARY.route) { com.opentune.ui.local.LibraryHub(content, actions, localNav) }
+                    // No longer tabs; reached from Home's "See all".
+                    page("artists") { com.opentune.ui.local.LocalArtistsScreen(content, localNav) }
+                    page("library") { com.opentune.ui.local.LibraryHub(content, actions, localNav) }
                     page(SEARCH_ROUTE) { com.opentune.ui.local.LocalSearchScreen(content, actions, localNav, onBack = { nav.popBackStack() }) }
                     page("album/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         com.opentune.ui.local.LocalAlbumScreen(e.arguments?.getString("id").orEmpty(), content, actions, localNav, onBack = { nav.popBackStack() })
@@ -482,10 +491,11 @@ fun AppRoot(vm: PlayerViewModel) {
                     page("folder/{path}", listOf(navArgument("path") { type = NavType.StringType })) { e ->
                         com.opentune.ui.local.LocalFolderScreen(e.arguments?.getString("path").orEmpty(), content, actions, onBack = { nav.popBackStack() })
                     }
-                    page("settings") {
+                    page(Tab.SETTINGS.route) {
                         SettingsScreen(
                             contentPadding = content,
-                            onBack = { nav.popBackStack() },
+                            // A tab now: back is the bar's job.
+                            onBack = null,
                             onOpenEqualizer = { nav.navigate("equalizer") },
                             onOpenReplay = { nav.navigate("replay") },
                             onOpenWrapped = { nav.navigate("wrapped") },
