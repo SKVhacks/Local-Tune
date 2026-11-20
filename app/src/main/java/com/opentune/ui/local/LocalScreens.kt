@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -353,8 +356,10 @@ fun LocalArtistsScreen(contentPadding: PaddingValues, nav: LocalNav) {
 fun LocalArtistScreen(id: String, contentPadding: PaddingValues, actions: SongActions, nav: LocalNav, onBack: () -> Unit) {
     val (_, library) = rememberLibrary()
     val artist = library?.artist(id)
-    LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
-        item { PageHeader(artist?.name.orEmpty(), onBack = onBack) }
+    // The picture runs from the very top of the screen, under the status bar.
+    val padding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+    LazyColumn(contentPadding = if (artist != null) padding else contentPadding, modifier = Modifier.fillMaxSize()) {
+        item { if (artist != null) ArtistHero(artist, onBack) else PageHeader("", onBack = onBack) }
         if (artist == null) {
             if (library != null) item { MessageState(Icons.Rounded.Person, "No songs by this artist on the phone", Modifier.padding(top = 32.dp)) }
             return@LazyColumn
@@ -746,4 +751,51 @@ private fun rememberArtistArt(artist: com.opentune.data.local.LocalMusic.Artist)
         if (known == null) com.opentune.data.local.ArtistImages.imageFor(context, artist)?.let { value = it }
     }
     return art
+}
+
+/**
+ * The top of an artist's page, as Apple Music has it: their picture across the
+ * top 40% of the screen, its lower part blurred and fading into the page, with
+ * the name over that part and the back button on the picture.
+ */
+@Composable
+private fun ArtistHero(artist: com.opentune.data.local.LocalMusic.Artist, onBack: () -> Unit) {
+    val art = rememberArtistArt(artist)
+    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.4f).dp
+    val page = MaterialTheme.colorScheme.background
+    Box(Modifier.fillMaxWidth().height(height)) {
+        Artwork(art, Modifier.matchParentSize(), shape = androidx.compose.ui.graphics.RectangleShape, placeholder = Icons.Rounded.Person)
+        // The same picture blurred, showing only toward the bottom: the name sits on soft colour.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) Artwork(
+            art,
+            Modifier
+                .matchParentSize()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(0.45f to androidx.compose.ui.graphics.Color.Transparent, 0.75f to androidx.compose.ui.graphics.Color.Black),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
+            shape = androidx.compose.ui.graphics.RectangleShape,
+            placeholder = Icons.Rounded.Person,
+            imageModifier = Modifier.blur(30.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Rectangle),
+        )
+        // Into the page's own colour at the very bottom, and a light shade at the top for the status bar.
+        Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.55f to androidx.compose.ui.graphics.Color.Transparent, 1f to page)))
+        Box(Modifier.fillMaxWidth().height(120.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f), 1f to androidx.compose.ui.graphics.Color.Transparent)))
+        Box(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = 16.dp, top = 8.dp)) {
+            com.opentune.ui.components.GlassBackButton(onBack)
+        }
+        Text(
+            artist.name,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        )
+    }
 }
