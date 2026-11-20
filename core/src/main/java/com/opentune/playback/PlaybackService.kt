@@ -1121,6 +1121,14 @@ class PlaybackService : MediaLibraryService() {
         val mediaId = item.mediaId
         // A file deleted or moved since it was queued won't come back by trying again.
         val permanent = error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
+        // But a song Android has only renumbered is still there: the queue is relinked
+        // to the library as it is now, and playback carries on from the same song.
+        if (permanent && relinkQueue(player)) {
+            Log.w(TAG, "Relinked the queue after $mediaId went missing")
+            player.prepare()
+            player.play()
+            return
+        }
         if (!permanent && retriedMediaId != mediaId) {
             Log.w(TAG, "Retrying $mediaId after ${error.errorCodeName}")
             retriedMediaId = mediaId
@@ -1138,6 +1146,26 @@ class PlaybackService : MediaLibraryService() {
             player.seekToNextMediaItem()
             player.prepare()
         }
+    }
+
+    /**
+     * Swaps each queued local song whose file id has gone for the same song as the
+     * library has it now; true when the current one was among them.
+     */
+    private fun relinkQueue(player: ExoPlayer): Boolean {
+        val library = com.opentune.data.local.LocalMusic.library.value ?: return false
+        val current = player.currentMediaItemIndex
+        var fixedCurrent = false
+        for (i in 0 until player.mediaItemCount) {
+            val item = player.getMediaItemAt(i)
+            if (!item.mediaId.startsWith(com.opentune.data.local.LocalMusic.PREFIX) || library.track(item.mediaId) != null) continue
+            val md = item.mediaMetadata
+            val saved = Song(item.mediaId, md.title?.toString().orEmpty(), md.artist?.toString().orEmpty(), md.artworkUri?.toString())
+            val found = library.find(saved) ?: continue
+            player.replaceMediaItem(i, found.toMediaItem())
+            if (i == current) fixedCurrent = true
+        }
+        return fixedCurrent
     }
 
     /** Tracks in a row that failed and were skipped; see [recover]. */

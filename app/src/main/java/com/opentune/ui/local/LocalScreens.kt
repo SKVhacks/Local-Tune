@@ -595,9 +595,12 @@ fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: Lo
     val ui by com.opentune.data.settings.AppSettings.ui.collectAsState()
     val records by com.opentune.data.history.History.records.collectAsState()
     val likedRefs by LibraryStore.liked.collectAsState()
-    val liked = remember(likedRefs) { likedRefs.map { it.toSong() } }
+    // Saved songs as they're on the phone now: relinked if Android renumbered them, left out if gone.
+    val liked = remember(likedRefs, library) { likedRefs.mapNotNull { com.opentune.data.local.LocalMusic.resolve(it.toSong()) } }
     val playlists by LibraryStore.playlists.collectAsState()
-    val recents = remember(records) { com.opentune.data.history.History.recents(records, limit = 20) }
+    val recents = remember(records, library) {
+        com.opentune.data.history.History.recents(records, limit = 40).mapNotNull { com.opentune.data.local.LocalMusic.resolve(it) }.distinctBy { it.videoId }.take(20)
+    }
     val artists = remember(library) { library?.artists.orEmpty().sortedByDescending { it.tracks.size }.take(20) }
     val albums = remember(library) { library?.albums.orEmpty().take(20) }
     val folders = remember(library) { library?.folders.orEmpty().sortedByDescending { it.tracks.size }.take(20) }

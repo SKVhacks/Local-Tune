@@ -87,11 +87,38 @@ object LocalMusic {
         val songs: List<Song> by lazy { tracks.map { it.song } }
         private val byId by lazy { tracks.associateBy { it.song.videoId } }
         fun track(videoId: String) = byId[videoId]
+        private val byName by lazy { tracks.groupBy { nameKey(it.song.title, it.song.artist) } }
+        private val byTitle by lazy { tracks.groupBy { plain(it.song.title) } }
+
+        /**
+         * This song as the library has it now. Android renumbers a file when it's moved,
+         * renamed or scanned again, so a song saved earlier (liked, in a playlist, in the
+         * history or the last queue) is found by its id, else by title and artist, else by
+         * a title only one song has. Null when it's no longer on the phone.
+         */
+        fun find(song: Song): Song? =
+            byId[song.videoId]?.song
+                ?: byName[nameKey(song.title, song.artist)]?.firstOrNull()?.song
+                ?: byTitle[plain(song.title)]?.singleOrNull()?.song
+
         fun album(id: String) = albums.firstOrNull { it.id == id }
         fun artist(id: String) = artists.firstOrNull { it.id == id }
         fun folder(path: String) = folders.firstOrNull { it.path == path }
 
         companion object { val EMPTY = Library(emptyList(), emptyList(), emptyList(), emptyList()) }
+    }
+
+    private fun plain(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+    private fun nameKey(title: String, artist: String) = plain(title) + "|" + plain(splitArtists(artist).firstOrNull() ?: artist)
+
+    /**
+     * A saved song as it's on the phone now (see [Library.find]): itself while the
+     * library isn't read yet, null when it's gone. Songs that aren't local pass as they are.
+     */
+    fun resolve(song: Song): Song? {
+        if (!song.videoId.startsWith(PREFIX)) return song
+        val library = _library.value ?: return song
+        return library.find(song)?.let { if (it.videoId == song.videoId) song else it.copy(queueTier = song.queueTier) }
     }
 
     private val _library = MutableStateFlow<Library?>(null)

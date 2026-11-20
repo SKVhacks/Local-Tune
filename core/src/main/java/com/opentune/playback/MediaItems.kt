@@ -57,7 +57,9 @@ fun cacheKeyOf(uri: Uri): String? = videoIdOf(uri)?.let { id ->
 private const val QUALITY_PARAM = "q"
 private const val QUALITY_UPGRADED = "hq"
 
-fun Song.toMediaItem(): MediaItem =
+fun Song.toMediaItem(): MediaItem = (com.opentune.data.local.LocalMusic.resolve(this) ?: this).itemOf()
+
+private fun Song.itemOf(): MediaItem =
     MediaItem.Builder()
         .setMediaId(videoId)
         .setUri(trackUri(videoId))
