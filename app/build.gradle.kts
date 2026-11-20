@@ -26,15 +26,15 @@ android {
 
     // A release key from the environment (CI secrets) when there is one;
     // otherwise release builds are signed with the debug key so they still
-    // install. See .github/workflows/release.yml.
-    val releaseKeystore = System.getenv("OPENTUNE_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
+    // install. See .github/workflows/build.yml.
+    val releaseKeystore = System.getenv("LOCALTUNE_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
     signingConfigs {
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = releaseKeystore
-                storePassword = System.getenv("OPENTUNE_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("OPENTUNE_KEY_ALIAS")
-                keyPassword = System.getenv("OPENTUNE_KEY_PASSWORD")
+                storePassword = System.getenv("LOCALTUNE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("LOCALTUNE_KEY_ALIAS")
+                keyPassword = System.getenv("LOCALTUNE_KEY_PASSWORD")
             }
         }
     }

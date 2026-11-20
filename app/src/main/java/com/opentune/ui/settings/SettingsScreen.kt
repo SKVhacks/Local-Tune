@@ -1124,4 +1124,4 @@ private fun SpotifyMark() {
 internal const val DEVELOPER_NAME = "SKVhacks"
 internal const val DEVELOPER_PORTFOLIO = "https://github.com/SKVhacks"
 /** This app's own source, as the GPL asks; the original it's built on is credited beside it. */
-private const val SOURCE_URL = "https://github.com/SKVhacks/opentune-local"
+private const val SOURCE_URL = "https://github.com/SKVhacks/Local-Tune"
