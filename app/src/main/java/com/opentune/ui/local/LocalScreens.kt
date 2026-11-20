@@ -341,6 +341,22 @@ fun LocalAlbumScreen(id: String, contentPadding: PaddingValues, actions: SongAct
                 }
             }) { actions.playAll(songs, i, false, album.title) }
         }
+        // Below the songs, as Apple Music does: "More by" each of the album's artists,
+        // with their other albums on this phone. Left out when there are none.
+        val names = if (album.artist == "Various artists") emptyList() else LocalMusic.splitArtists(album.artist)
+        names.forEach { name ->
+            val artist = library.artist(LocalMusic.artistId(name)) ?: return@forEach
+            val others = artist.albums.filter { it.id != album.id }
+            if (others.isEmpty()) return@forEach
+            item(key = "more-${artist.id}") {
+                Shelf("More by ${artist.name}", onSeeAll = { nav.artist(artist.id) }) {
+                    items(others, key = { it.id }) { a ->
+                        CoverTile(a.title, a.year.takeIf { it > 0 }?.toString() ?: a.artist, a.art, Icons.Rounded.Album, width = SHELF_TILE) { nav.album(a.id) }
+                    }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
