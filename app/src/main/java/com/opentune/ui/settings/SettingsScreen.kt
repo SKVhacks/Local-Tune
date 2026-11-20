@@ -637,6 +637,13 @@ private fun settingsSections(
         Section(
             "Playback",
             listOfNotNull(
+                Entry("Pure output", "raw untouched bit perfect original audio no processing dsp equalizer effects bypass") {
+                    ToggleRow(
+                        "Pure output", pb.pureOutput, { v -> AppSettings.updatePlayback { it.copy(pureOutput = v) } },
+                        summary = "Plays each file's own audio untouched: no equalizer or effects, no loudness levelling, and the phone's sound effects closed. Your equalizer settings are kept for when this is off.",
+                        icon = Icons.Rounded.GraphicEq,
+                    )
+                },
                 Entry("Loudness normalization", "volume level") {
                     ToggleRow("Loudness normalization", pb.loudnessNormalization, { v -> AppSettings.updatePlayback { it.copy(loudnessNormalization = v) } }, summary = "Uses each file's ReplayGain tag to set one steady volume per song", icon = Icons.AutoMirrored.Rounded.VolumeUp)
                 },

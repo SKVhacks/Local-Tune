@@ -226,6 +226,9 @@ class PlaybackService : MediaLibraryService() {
                 // Bit-perfect means nothing but the volume touches the samples.
                 if (bp is BitPerfectUsb.Status.Active) {
                     DspParams(outputGainDb = audioManager?.let(BitPerfectUsb::softwareGainDb) ?: 0f)
+                } else if (pb.pureOutput) {
+                    // Pure output: the samples pass through untouched.
+                    DspParams()
                 } else {
                     DspParams(eq, sound.bassBoost, pb.spatialAudio, pb.clarity, eightDPeriod = sound.eightD.periodSeconds, spacePeriod = sound.space.periodSeconds)
                 }
@@ -246,7 +249,7 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch { trackListening(player) }
         scope.launch {
-            AppSettings.playback.map { Triple(it.loudnessNormalization, it.normalizeOnSpeaker, it.volumeLevel) }.distinctUntilChanged().collect { applyLoudness() }
+            AppSettings.playback.map { listOf(it.loudnessNormalization, it.normalizeOnSpeaker, it.volumeLevel, it.pureOutput) }.distinctUntilChanged().collect { applyLoudness() }
         }
         scope.launch {
             AppSettings.playback.map { it.preloadUpcoming }.distinctUntilChanged().collect { on ->
@@ -259,7 +262,7 @@ class PlaybackService : MediaLibraryService() {
 
         scope.launch { runSleepTimer(player) }
         scope.launch {
-            AppSettings.playback.map { it.systemEffects }.distinctUntilChanged().collect { openEffectSession(player.audioSessionId) }
+            AppSettings.playback.map { it.systemEffects to it.pureOutput }.distinctUntilChanged().collect { openEffectSession(player.audioSessionId) }
         }
         crossfade = Crossfade(context, scope, sources, player).also { it.start() }
         // Casting: the device follows this player while one is connected.
@@ -854,7 +857,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun openEffectSession(session: Int) {
         PhoneEqualizer.session = session
-        if (!AppSettings.playback.value.systemEffects || BitPerfectUsb.active) return closeEffectSession()
+        if (!AppSettings.playback.value.systemEffects || AppSettings.playback.value.pureOutput || BitPerfectUsb.active) return closeEffectSession()
         if (session == C.AUDIO_SESSION_ID_UNSET || session == effectSession) return
         closeEffectSession()
         effectSession = session
@@ -893,7 +896,7 @@ class PlaybackService : MediaLibraryService() {
         val pb = AppSettings.playback.value
         val speakerHold = pb.loudnessNormalization && !pb.normalizeOnSpeaker && onPhoneSpeaker()
         NerdStats.onLoudnessOffOnSpeaker(speakerHold)
-        val on = pb.loudnessNormalization && db != null && !BitPerfectUsb.active
+        val on = pb.loudnessNormalization && !pb.pureOutput && db != null && !BitPerfectUsb.active
         val enhancer = loudnessEnhancer?.takeIf { loudnessSession == session }
             ?: runCatching { LoudnessEnhancer(session) }
                 .onFailure { Log.w(TAG, "LoudnessEnhancer unavailable", it) }

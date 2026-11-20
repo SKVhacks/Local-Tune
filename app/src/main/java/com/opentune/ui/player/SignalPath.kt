@@ -95,7 +95,10 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
     val route = rememberOutputRoute()
     val btCodec by rememberBluetoothCodec(route, device)
     val bitPerfect by BitPerfectUsb.status.collectAsState()
-    val mixerRate = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+    // The system's output rate: on Bluetooth the link runs at the codec's rate (LDAC at
+    // 96 kHz, say), not the phone speaker's mixer rate, which is what the property gives.
+    val speakerMixer = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+    val mixerRate = if (route == OutputRoute.BLUETOOTH) btCodec?.rateHz ?: speakerMixer else speakerMixer
     val volume = am?.getStreamVolume(AudioManager.STREAM_MUSIC)
     val maxVolume = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
 
@@ -109,7 +112,7 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
     val trackRate = pipe.outputSampleRateHz ?: rate
     val resampled = trackRate != null && mixerRate != null && trackRate != mixerRate
 
-    val dspStages = buildList {
+    val dspStages = if (pb.pureOutput) emptyList() else buildList {
         if (eq.enabled) add("Equalizer")
         if (sound.bassBoost > 0) add("Bass boost")
         if (pb.spatialAudio) add("Stereo widening")
@@ -158,9 +161,10 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
             Icons.Rounded.GraphicEq, "DSP",
             listOfNotNull(
                 "PCM Format" to if (pb.floatOutput) "Float32" else "16-bit PCM",
-                "Effects" to (if (dspStages.isEmpty()) "Bypassed" else dspStages.joinToString(", ")),
+                "Effects" to (if (pb.pureOutput) "None (pure output)" else if (dspStages.isEmpty()) "Bypassed" else dspStages.joinToString(", ")),
                 "Tempo" to (if (sound.speed == 1f && sound.pitch == 1f) "1.00x" else "%.2fx speed, %.2fx pitch".format(Locale.ROOT, sound.speed, sound.pitch)),
                 "Loudness" to when {
+                    pb.pureOutput -> "Off (pure output)"
                     !pb.loudnessNormalization -> "Off"
                     lossless != null -> "Not measured for this master"
                     speakerHold && (gain ?: 0f) > 0.05f -> "%+.1f dB, phone speaker".format(Locale.ROOT, gain)
@@ -169,7 +173,7 @@ fun SignalPathDialog(format: AudioFormatInfo?, onDismiss: () -> Unit, song: com.
                     else -> "%+.1f dB".format(Locale.ROOT, gain)
                 },
                 "Dither" to if (pb.floatOutput) "Bypassed (float)" else "TPDF, noise shaped",
-                "System effects" to if (pb.systemEffects) "Open" else "Closed",
+                "System effects" to if (pb.systemEffects && !pb.pureOutput) "Open" else "Closed",
                 pipe.bufferMs?.let { ms -> "Buffer" to "$ms ms" + (pipe.bufferFrames?.let { " ($it frames)" } ?: "") },
             ),
         ),

@@ -34,7 +34,7 @@ import kotlin.coroutines.resume
  * permission. When either isn't to be had, there's simply no line for it.
  */
 object BluetoothCodec {
-    data class Info(val name: String, val detail: String?) {
+    data class Info(val name: String, val detail: String?, val rateHz: Int? = null) {
         override fun toString() = listOfNotNull(name, detail).joinToString(" · ")
     }
 
@@ -78,11 +78,12 @@ object BluetoothCodec {
         // Android 14 names the codec itself, vendor ones (LHDC, aptX Adaptive…) too.
         val extended = if (Build.VERSION.SDK_INT >= 34) runCatching { call(config, "getExtendedCodecType")?.let { call(it, "getCodecName") as? String } }.getOrNull() else null
         val name = extended?.takeIf { it.isNotBlank() }?.let(::tidy) ?: CODECS[type] ?: return null
-        val rate = (call(config, "getSampleRate") as? Int)?.let { mask -> RATES.entries.firstOrNull { mask and it.key != 0 }?.value }
+        val rateBit = (call(config, "getSampleRate") as? Int)?.let { mask -> RATES.keys.firstOrNull { mask and it != 0 } }
+        val rate = rateBit?.let { RATES[it] }
         val bits = (call(config, "getBitsPerSample") as? Int)?.let { mask -> BITS.entries.firstOrNull { mask and it.key != 0 }?.value }
         // LDAC keeps its quality mode in the first codec-specific value.
         val ldac = if (name.equals("LDAC", ignoreCase = true)) LDAC_MODES[(call(config, "getCodecSpecific1") as? Long)?.toInt()] else null
-        return Info(name, listOfNotNull(rate, bits, ldac).joinToString(" · ").ifEmpty { null })
+        return Info(name, listOfNotNull(rate, bits, ldac).joinToString(" · ").ifEmpty { null }, rateBit?.let { RATE_HZ[it] })
     }
 
     /** A method of a Bluetooth class, public or not. */
@@ -100,6 +101,7 @@ object BluetoothCodec {
 
     private val CODECS = mapOf(0 to "SBC", 1 to "AAC", 2 to "aptX", 3 to "aptX HD", 4 to "LDAC", 5 to "LC3", 6 to "Opus")
     private val RATES = linkedMapOf(0x20 to "192 kHz", 0x10 to "176.4 kHz", 0x8 to "96 kHz", 0x4 to "88.2 kHz", 0x2 to "48 kHz", 0x1 to "44.1 kHz")
+    private val RATE_HZ = mapOf(0x20 to 192_000, 0x10 to 176_400, 0x8 to 96_000, 0x4 to 88_200, 0x2 to 48_000, 0x1 to 44_100)
     private val BITS = linkedMapOf(0x4 to "32-bit", 0x2 to "24-bit", 0x1 to "16-bit")
     private val LDAC_MODES = mapOf(1000 to "990 kbps", 1001 to "660 kbps", 1002 to "330 kbps", 1003 to "Adaptive bitrate")
 }

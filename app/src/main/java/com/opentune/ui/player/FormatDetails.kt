@@ -77,7 +77,9 @@ internal fun FormatDetailsDialog(song: Song?, format: AudioFormatInfo?, onDismis
     val device = rememberOutputDeviceName()
     val route = rememberOutputRoute()
     val btCodec by rememberBluetoothCodec(route, device)
-    val mixerRate = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+    val speakerMixer = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+    // On Bluetooth the link's own rate, not the speaker mixer's.
+    val mixerRate = if (route == OutputRoute.BLUETOOTH) btCodec?.rateHz ?: speakerMixer else speakerMixer
 
     val lossless = isHighestQuality(source, format)
     val bits = format?.bitDepth ?: source?.bits

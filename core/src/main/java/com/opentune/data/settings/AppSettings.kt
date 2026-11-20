@@ -330,6 +330,13 @@ data class PlaybackSettings(
     val bitPerfectUsb: Boolean = false,
     /** Let the phone's own effects (Dolby, SoundAlive, system EQ) process playback. */
     val systemEffects: Boolean = true,
+    /**
+     * The file's own samples, untouched by the app: no equalizer or other sound
+     * effects, no loudness levelling and the phone's effects closed, whatever those
+     * are set to (their settings are kept for when this is off). Speed and pitch,
+     * when changed by hand, still apply.
+     */
+    val pureOutput: Boolean = true,
     /** Carry on playing when headphones are plugged in or a Bluetooth device connects. */
     val resumeOnConnect: Boolean = false,
     /** Pause when the media volume is turned all the way down, and resume when it comes back up. */
