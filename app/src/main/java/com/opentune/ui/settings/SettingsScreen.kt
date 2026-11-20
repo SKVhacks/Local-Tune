@@ -446,11 +446,24 @@ private fun settingsSections(
             message = runCatching {
                 val doc = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { AppSettings.json.parseToJsonElement(it.readBytes().decodeToString()) }
-                } as? JsonObject ?: error("not an LocalTune export")
+                } as? JsonObject ?: error("this isn't a LocalTune backup")
+                // Only this app's backups (LocalTune's, or OpenTune's from before the rename).
+                val app = (doc["app"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                if (app !in setOf("LocalTune", "OpenTune") || listOf("settings", "history", "library").none { it in doc }) error("this isn't a LocalTune backup")
+                // Every part is read first: a damaged file changes nothing, rather than half of it.
+                withContext(Dispatchers.Default) {
+                    doc["settings"]?.let(AppSettings::checkJson)
+                    doc["history"]?.let(History::checkJson)
+                    doc["library"]?.let(LibraryStore::checkJson)
+                }
+                val (likes, lists) = doc["library"]?.let(LibraryStore::countJson) ?: (0 to 0)
                 doc["settings"]?.let(AppSettings::importJson)
                 doc["history"]?.let(History::importJson)
                 doc["library"]?.let(LibraryStore::importJson)
-                "Imported settings, history, likes and playlists."
+                // Songs moved onto this phone's own files (they're numbered differently here).
+                withContext(Dispatchers.IO) { runCatching { LocalMusic.current(context) } }
+                LocalMusic.relinkSaved()
+                "Restored settings, history, $likes liked songs and $lists playlists."
             }.getOrElse { "Import failed: ${it.message}" }
         }
     }
@@ -1050,7 +1063,7 @@ private fun settingsSections(
                     NavRow("Wrapped", onOpenWrapped, summary = "Your listening as an animated story", icon = Icons.Rounded.AutoAwesome)
                 },
                 Entry("Export data", "backup json") {
-                    NavRow("Export data", { exporter.launchSafely(context, "opentune-backup.json") }, summary = "Settings, history, likes and playlists, as one JSON file", icon = Icons.Rounded.Upload)
+                    NavRow("Export data", { exporter.launchSafely(context, "localtune-backup-" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json") }, summary = "Settings, history, likes and playlists, as one JSON file", icon = Icons.Rounded.Upload)
                 },
                 Entry("Import data", "restore json") {
                     NavRow("Import data", { importer.launchSafely(context, arrayOf("application/json")) }, summary = "Replaces the settings, history, likes and playlists on this device", icon = Icons.Rounded.Download)

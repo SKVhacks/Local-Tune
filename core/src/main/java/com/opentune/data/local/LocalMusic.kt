@@ -121,6 +121,29 @@ object LocalMusic {
         return library.find(song)?.let { if (it.videoId == song.videoId) song else it.copy(queueTier = song.queueTier) }
     }
 
+    /**
+     * Liked songs, playlists and history moved onto the files' current numbers, once the
+     * library's read: a backup from another phone, a reinstall or a rescan otherwise leaves
+     * them pointing at numbers that are gone (their pictures blank, their plays uncounted).
+     * Songs not found are left as they are, in case their files come back.
+     */
+    fun relinkSaved(library: Library? = _library.value) {
+        library ?: return
+        fun moved(id: String, title: String, artist: String): Song? {
+            if (!id.startsWith(PREFIX)) return null
+            val found = library.find(Song(id, title, artist, null, null)) ?: return null
+            return found.takeIf { it.videoId != id }
+        }
+        com.opentune.data.library.LibraryStore.relink { r ->
+            moved(r.videoId, r.title, r.artist)?.let { s ->
+                r.copy(videoId = s.videoId, thumbnailUrl = s.thumbnailUrl, albumId = s.albumId, durationText = s.durationText ?: r.durationText)
+            } ?: r
+        }
+        com.opentune.data.history.History.relink { r ->
+            moved(r.videoId, r.title, r.artist)?.let { s -> r.copy(videoId = s.videoId, thumbnailUrl = s.thumbnailUrl) } ?: r
+        }
+    }
+
     private val _library = MutableStateFlow<Library?>(null)
     /** The library, or null until it's first read (or without permission). */
     val library: StateFlow<Library?> = _library
@@ -150,7 +173,7 @@ object LocalMusic {
             if (!hasPermission(app)) { _library.value = null; return@launch }
             watch()
             _scanning.value = true
-            runCatching { build(query(app), AppSettings.library.value) }.onSuccess { _library.value = it }
+            runCatching { build(query(app), AppSettings.library.value) }.onSuccess { _library.value = it; relinkSaved(it) }
             _scanning.value = false
         }
     }
@@ -171,7 +194,7 @@ object LocalMusic {
         _library.value?.let { return it }
         if (!::app.isInitialized) app = context.applicationContext
         if (!hasPermission(context)) return Library.EMPTY
-        return withContext(Dispatchers.IO) { build(query(context), AppSettings.library.value) }.also { _library.value = it }
+        return withContext(Dispatchers.IO) { build(query(context), AppSettings.library.value) }.also { _library.value = it; relinkSaved(it) }
     }
 
     suspend fun tracks(context: Context, settings: LibrarySettings): List<Song> = withContext(Dispatchers.IO) {

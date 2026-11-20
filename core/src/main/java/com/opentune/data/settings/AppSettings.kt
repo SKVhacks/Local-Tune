@@ -873,6 +873,9 @@ object AppSettings {
 
     fun exportJson(): JsonElement = json.encodeToJsonElement(SettingsState.serializer(), _state.value)
 
+    /** Checks a backup's settings part before anything is replaced; throws when it can't be read. */
+    fun checkJson(element: JsonElement) { json.decodeFromJsonElement(SettingsState.serializer(), element) }
+
     fun importJson(element: JsonElement) {
         val s = json.decodeFromJsonElement(SettingsState.serializer(), element)
         update { s }

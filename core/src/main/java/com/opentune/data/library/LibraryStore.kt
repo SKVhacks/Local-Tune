@@ -209,5 +209,24 @@ object LibraryStore {
 
     fun exportJson(): JsonElement = json.encodeToJsonElement(LibraryDocument.serializer(), doc.value)
 
+    /** Checks a backup's library part before anything is replaced; throws when it can't be read. */
+    fun checkJson(element: JsonElement) { json.decodeFromJsonElement(LibraryDocument.serializer(), element) }
+
+    /** How many liked songs and playlists a backup's library part holds. */
+    fun countJson(element: JsonElement): Pair<Int, Int> =
+        json.decodeFromJsonElement(LibraryDocument.serializer(), element).let { it.liked.size to it.playlists.size }
+
+    /**
+     * Saved songs pointed at the files as they're numbered now ([fix] gives each its
+     * current self): after a restore on another phone, a reinstall or a rescan.
+     */
+    @Synchronized
+    fun relink(fix: (SongRef) -> SongRef) {
+        val d = doc.value
+        val liked = d.liked.map(fix).distinctBy { it.videoId }
+        val playlists = d.playlists.map { p -> p.copy(songs = p.songs.map(fix)) }
+        if (liked != d.liked || playlists != d.playlists) publish(d.copy(liked = liked, playlists = playlists))
+    }
+
     fun importJson(element: JsonElement) = publish(json.decodeFromJsonElement(LibraryDocument.serializer(), element))
 }

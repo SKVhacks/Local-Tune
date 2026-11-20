@@ -132,6 +132,16 @@ object History {
 
     fun exportJson(): JsonElement = json.encodeToJsonElement(serializer, _records.value)
 
+    /** Checks a backup's history part before anything is replaced; throws when it can't be read. */
+    fun checkJson(element: JsonElement) { json.decodeFromJsonElement(serializer, element) }
+
+    /** Listens pointed at the files as they're numbered now: see LibraryStore.relink. */
+    fun relink(fix: (PlayRecord) -> PlayRecord) {
+        val now = _records.value
+        val fixed = now.map(fix)
+        if (fixed != now) _records.value = fixed
+    }
+
     fun importJson(element: JsonElement) {
         _records.value = json.decodeFromJsonElement(serializer, element).sortedByDescending { it.playedAt }.take(MAX_RECORDS)
     }
