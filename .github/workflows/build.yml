@@ -2,16 +2,25 @@
 # ("Run workflow"). The APKs are attached to the run as "LocalTune-apks":
 # open the run, scroll to Artifacts, download, unzip and install.
 #
-# Pushing a tag like v1.0 also publishes a GitHub Release with the APKs,
-# so anyone can download them from the repository's Releases page.
+# Publishing a GitHub Release (any tag name) builds the app and attaches the
+# APKs to it. To add them to a release made earlier, use "Run workflow" and
+# type that release's tag.
 name: Build LocalTune
 
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
+    # Text-only changes don't need an app build.
+    paths-ignore: ["**.md", "docs/**", "*.png", "*.jpg"]
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Attach the APKs to this existing release (its tag, e.g. LocalTune-1.0). Leave empty for a plain build."
+        required: false
+        default: ""
 
 concurrency:
   group: build-${{ github.ref }}
@@ -71,9 +80,10 @@ jobs:
           name: LocalTune-apks
           path: app/build/outputs/apk/release/*.apk
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Attach to release
+        if: github.event_name == 'release' || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.release.tag_name || inputs.release_tag }}
           files: app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
+          fail_on_unmatched_files: true
