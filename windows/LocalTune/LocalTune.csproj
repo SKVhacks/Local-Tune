@@ -20,6 +20,9 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <!-- Builds the app's compiled layouts (resources.pri) on publish too, which a plain .exe needs. -->
     <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- The compiled layouts as resources.pri, not LocalTune.pri: Windows looks for "<exe name>.pri"
+         or resources.pri, so the app still starts when its .exe is renamed (LocalTune-x64.exe). -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

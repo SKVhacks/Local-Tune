@@ -4,8 +4,11 @@ LocalTune is SKVhacks's fully offline Android music player for local files, made
 
 ## Project basics
 
-- **Repository:** https://github.com/SKVhacks/Local-Tune (main). The older https://github.com/SKVhacks/opentune-local has the same history. Never push to justshivv's upstream.
-  - On 2026-11-24 the user decided to move to a new repository with a clean layout. The URL isn't known yet; add it here once it exists.
+- **Repository:** https://github.com/SKVhacks/Local-Tune (main). Never push to justshivv's upstream.
+  - On 2026-11-24 the user deleted the old Local-Tune repository and recreated it empty under the same name. The whole history plus the clean layout was pushed as commit a95f0de.
+  - The README (by Claude, approved by the user) shows `Screenshot/` (Mobile-View, PC-View, thumbnail.png). The phone Home shot shows the user's name; they were told, and published it anyway.
+  - Git identity for this repository only: `Gadget_Vishwa <90371639+SKVhacks@users.noreply.github.com>`, the user's GitHub noreply address from their own earlier commits. There's no global git identity on this PC.
+  - The four signing secrets must be added to the new repository (they were on the deleted one).
 - **Layout (since 2026-11-24):**
   - `android/`: the Gradle project (app, core, wrapper).
   - `windows/`: LocalTune and the installer.
@@ -141,6 +144,8 @@ The user wants a **native** Windows app: Compose Multiplatform was tried and rej
   - Build: `dotnet publish windows/LocalTune -c Release -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o windows/installer/Output/single`, then delete the .pdb.
   - The result is one `LocalTune.exe` of about 67 MB. It was tested alone in an empty folder.
   - On first start it unpacks itself to the temp folder, so that start is slower.
+  - **`ProjectPriFileName=resources.pri` is required.** WinUI looks for "<exe name>.pri", or `resources.pri`. With the default `LocalTune.pri`, CI's rename to `LocalTune-x64.exe` made release 1.0's single exe crash at start ("XAML parsing failed" in `MainWindow.InitializeComponent`). The user reported it as "won't open".
+  - With `resources.pri`, any exe name works (tested). The installer and the zip were fine all along.
   - Inno Setup isn't installed on the user's PC; the setup .exe comes from CI.
 - **Installer:** `windows/installer/LocalTune.iss` (Inno Setup). It installs per user, with no admin prompt. CI's `windows` job builds `LocalTune-Setup-x64.exe` and `LocalTune-windows-x64.zip`. Never change the installer's AppId.
 - **Data:** settings, the library cache and `crash.log` are in `%APPDATA%\LocalTune`.
