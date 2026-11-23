@@ -1,0 +1,34 @@
+<ResourceDictionary
+    x:Class="LocalTune.Views.Templates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:LocalTune.Views"
+    xmlns:core="using:LocalTune.Core">
+
+    <!-- How a song, an album and an artist look in a list. -->
+    <DataTemplate x:Key="SongCoverRow" x:DataType="core:Track">
+        <local:SongRow Track="{x:Bind}" Mode="Cover" />
+    </DataTemplate>
+    <DataTemplate x:Key="SongNumberRow" x:DataType="core:Track">
+        <local:SongRow Track="{x:Bind}" Mode="Number" />
+    </DataTemplate>
+    <DataTemplate x:Key="SongDetailedRow" x:DataType="core:Track">
+        <local:SongRow Track="{x:Bind}" Mode="Detailed" />
+    </DataTemplate>
+    <!-- Tiles that grow and shrink to share each row of the Albums and Artists pages. -->
+    <DataTemplate x:Key="AlbumFillTemplate" x:DataType="core:Album">
+        <local:AlbumTile Album="{x:Bind}" Fill="True" />
+    </DataTemplate>
+    <DataTemplate x:Key="ArtistFillTemplate" x:DataType="core:Artist">
+        <local:ArtistTile Artist="{x:Bind}" Fill="True" />
+    </DataTemplate>
+    <DataTemplate x:Key="FolderFillTemplate" x:DataType="core:MusicFolder">
+        <local:FolderTile Folder="{x:Bind}" Fill="True" />
+    </DataTemplate>
+    <DataTemplate x:Key="AlbumTileTemplate" x:DataType="core:Album">
+        <local:AlbumTile Album="{x:Bind}" />
+    </DataTemplate>
+    <DataTemplate x:Key="ArtistTileTemplate" x:DataType="core:Artist">
+        <local:ArtistTile Artist="{x:Bind}" />
+    </DataTemplate>
+</ResourceDictionary>

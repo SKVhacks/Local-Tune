@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    LocalTune for Windows: a native WinUI 3 app (Windows App SDK).
+    Build:   dotnet build -c Release -p:Platform=x64
+    Publish: dotnet publish -c Release -p:Platform=x64   (bin\x64\Release\...\publish)
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>LocalTune</RootNamespace>
+    <AssemblyName>LocalTune</AssemblyName>
+    <Platforms>x64;ARM64</Platforms>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <!-- A plain .exe with everything it needs beside it: no Store package, nothing else to install. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Builds the app's compiled layouts (resources.pri) on publish too, which a plain .exe needs. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0</Version>
+    <Product>LocalTune</Product>
+    <Company>SKVhacks</Company>
+    <Copyright>GPL-3.0. Based on OpenTune by justshivv.</Copyright>
+    <!-- The app's icon: OpenTune's logo (the user's choice), for the .exe, its windows and the taskbar. -->
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Only the parts of the Windows App SDK a music player uses: the UI, windows and the basics.
+      The full Microsoft.WindowsAppSDK package also brings its AI and machine-learning runtimes,
+      which would add well over 100 MB to the download for nothing.
+    -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.7.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.7.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" Version="2.7.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2957" />
+    <!-- Tags and embedded covers. -->
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Windows' own control text in English only: one language folder instead of ninety. -->
+  <PropertyGroup>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <Target Name="DropOtherLanguages" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishedDirs Include="$([System.IO.Directory]::GetDirectories('$(PublishDir)'))" />
+      <!-- Folders named like a language (af-ZA, az-Latn-AZ), all but English. -->
+      <LanguageDirs Include="@(PublishedDirs)"
+                    Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)%(Extension)', '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})+$')) and '%(Filename)%(Extension)' != 'en-us' and '%(Filename)%(Extension)' != 'en-US'" />
+    </ItemGroup>
+    <RemoveDir Directories="@(LanguageDirs)" />
+  </Target>
+</Project>

@@ -1,16 +1,19 @@
-# Builds LocalTune on every push, and on demand from the Actions tab
-# ("Run workflow"). The APKs are attached to the run as "LocalTune-apks":
-# open the run, scroll to Artifacts, download, unzip and install.
+# Builds both LocalTune apps on every push, and on demand from the Actions tab ("Run workflow").
 #
-# Publishing a GitHub Release (any tag name) builds the app and attaches the
-# APKs to it. To add them to a release made earlier, use "Run workflow" and
-# type that release's tag.
+#   Android (android/)  -> "LocalTune-android": the APKs
+#   Windows (windows/)  -> "LocalTune-windows": LocalTune-Setup-x64.exe (installer),
+#                          LocalTune-x64.exe (one file, runs without installing)
+#                          and LocalTune-windows-x64.zip
+#
+# Open the run, scroll to Artifacts and download. Publishing a GitHub Release (any tag name)
+# builds both and attaches everything to it. To add them to a release made earlier, use
+# "Run workflow" and type that release's tag.
 name: Build LocalTune
 
 on:
   push:
     branches: ["**"]
-    # Text-only changes don't need an app build.
+    # Text-only changes don't need a build.
     paths-ignore: ["**.md", "docs/**", "*.png", "*.jpg"]
   pull_request:
   release:
@@ -18,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Attach the APKs to this existing release (its tag, e.g. LocalTune-1.0). Leave empty for a plain build."
+        description: "Attach the builds to this existing release (its tag, e.g. LocalTune-1.0). Leave empty for a plain build."
         required: false
         default: ""
 
@@ -30,9 +33,12 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: android
     steps:
       - uses: actions/checkout@v4
 
@@ -50,9 +56,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon :core:testDebugUnitTest
 
-      # The signing key, from the repository's secrets: with it every build
-      # updates the installed app in place. Without it the APKs are signed
-      # with this run's throwaway key, which installs but can't update.
+      # The signing key, from the repository's secrets: with it every build updates the
+      # installed app in place. Without it the APKs are signed with this run's throwaway
+      # key, which installs but can't update.
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.LOCALTUNE_KEYSTORE_BASE64 }}
@@ -77,13 +83,57 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalTune-apks
-          path: app/build/outputs/apk/release/*.apk
+          name: LocalTune-android
+          path: android/app/build/outputs/apk/release/*.apk
 
       - name: Attach to release
         if: github.event_name == 'release' || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name || inputs.release_tag }}
-          files: app/build/outputs/apk/release/*.apk
+          files: android/app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: true
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet publish windows/LocalTune/LocalTune.csproj -c Release -p:Platform=x64
+
+      - name: Installer and zip
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content windows/LocalTune/LocalTune.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" windows\installer\LocalTune.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path windows\LocalTune\bin\x64\Release\net10.0-windows10.0.26100.0\win-x64\publish\* -DestinationPath windows\installer\Output\LocalTune-windows-x64.zip
+
+      # The same app as one .exe that runs without installing (it unpacks itself on first start).
+      - name: Single exe
+        shell: pwsh
+        run: |
+          dotnet publish windows/LocalTune/LocalTune.csproj -c Release -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o windows\installer\single
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item windows\installer\single\LocalTune.exe windows\installer\Output\LocalTune-x64.exe
+          Get-ChildItem windows\installer\Output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTune-windows
+          path: windows/installer/Output/*
+
+      - name: Attach to release
+        if: github.event_name == 'release' || inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name || inputs.release_tag }}
+          files: windows/installer/Output/*
           fail_on_unmatched_files: true
