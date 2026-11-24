@@ -120,7 +120,21 @@ LocalTune is SKVhacks's fully offline Android music player for local files, made
   - `PlaybackService.recover()` re-links the queue on FILE_NOT_FOUND.
 - **Backup:**
   - Settings › Music and storage › Backup exports `localtune-backup-YYYY-MM-DD.json`.
-  - Import only accepts backups from LocalTune or the old OpenTune, and checks the whole file before changing anything.
+  - The file holds the library only: `{app:"LocalTune", format:"localtune-library", version:2, exportedAt, library, history}`. There are no settings in it, so the Windows app reads the same file. Songs are matched by title and artist.
+  - Import only accepts backups from LocalTune or the old OpenTune, ignores the `settings` part of older backups, and checks the whole file before changing anything.
+  - `version` is 2 here, while the Windows export writes 1. Both sides should accept either.
+- **Home on Android (`HomePicks` in `android/app/.../ui/local/LocalScreens.kt`):**
+  - The order is: Recently played, "Recommended songs for you", "Suggested albums", Artists, Playlists, Folders, Replay.
+  - "Recommended songs for you" holds 20 songs from `android/core/.../data/recommend/Recommender.kt`. It's pure Kotlin with tests, and scores songs on:
+    - Taste for the artist, album and folder, with a 3-week recency half-life. A song skipped before a third of it plays counts against.
+    - Songs played together in one sitting.
+    - Likes, plus a small bonus for songs not heard yet.
+    - Songs played in the last 36 hours are held back.
+    - At most 2 songs per artist or album.
+  - "Suggested albums" is 15 random albums. Both shelves are picked once per app start, from a process seed.
+  - Liked songs is the first tile in Playlists: a heart on a pink-to-orange gradient. It has no shelf of its own.
+  - Tapping a song in Recently played plays it, then about 30 songs that go with it (`HomePicks.after` → `Recommender.recommend(after = id)`), not the history list.
+- **Lost changes (history):** these Android features were left out when the code moved into `android/` (that copy came from commit `da381f5`). Commit `3745b1c` put them back. When moving or copying code, always start from the latest `main`.
 
 ### Other
 
