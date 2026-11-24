@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -293,6 +294,27 @@ private fun CoverTile(title: String, subtitle: String, art: String?, placeholder
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Liked songs as a playlist tile: a white heart on a warm gradient, not a song's cover. */
+@Composable
+private fun LikedTile(count: Int, width: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Column(Modifier.width(width).clip12().clickable(onClick = onClick).padding(6.dp)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.medium)
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFFFF5E7E), androidx.compose.ui.graphics.Color(0xFFFF9A3C)))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.Favorite, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.42f))
+        }
+        Text("Liked songs", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            if (count == 1) "1 song" else "$count songs",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
         )
     }
 }
@@ -638,7 +660,9 @@ fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: Lo
         com.opentune.data.history.History.recents(records, limit = 40).mapNotNull { com.opentune.data.local.LocalMusic.resolve(it) }.distinctBy { it.videoId }.take(20)
     }
     val artists = remember(library) { library?.artists.orEmpty().sortedByDescending { it.tracks.size }.take(20) }
-    val albums = remember(library) { library?.albums.orEmpty().take(20) }
+    // Both picked once each time the app starts, and kept until it's closed: see HomePicks.
+    val albums = remember(library) { library?.let(HomePicks::albums).orEmpty() }
+    val suggested = remember(library) { library?.let(HomePicks::songs).orEmpty() }
     val folders = remember(library) { library?.folders.orEmpty().sortedByDescending { it.tracks.size }.take(20) }
     var naming by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
@@ -657,8 +681,26 @@ fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: Lo
             Shelf("Recently played", onSeeAll = nav.history) {
                 itemsIndexed(recents, key = { i, s -> "r$i${s.videoId}" }) { i, song ->
                     CoverTile(song.title, song.artist, song.thumbnailUrl, Icons.Rounded.History, width = SHELF_TILE) {
-                        actions.playAll(recents, i, false, "Recently played")
+                        // The song, then songs that go with it, rather than the rest of the history.
+                        val next = library?.let { HomePicks.after(it, song) }.orEmpty()
+                        actions.playAll(listOf(song) + next, 0, false, song.title)
                     }
+                }
+            }
+        }
+        if (suggested.isNotEmpty()) item {
+            Shelf("Recommended songs for you", onSeeAll = null) {
+                itemsIndexed(suggested, key = { _, s -> "s${s.videoId}" }) { i, song ->
+                    CoverTile(song.title, song.artist, song.thumbnailUrl, Icons.Rounded.AutoAwesome, width = SHELF_TILE) {
+                        actions.playAll(suggested, i, false, "Recommended songs for you")
+                    }
+                }
+            }
+        }
+        if (albums.isNotEmpty()) item {
+            Shelf("Suggested albums", onSeeAll = nav.albums) {
+                items(albums, key = { it.id }) { a ->
+                    CoverTile(a.title, a.artist, a.art, Icons.Rounded.Album, width = SHELF_TILE) { nav.album(a.id) }
                 }
             }
         }
@@ -670,28 +712,16 @@ fun LocalHomeScreen(contentPadding: PaddingValues, actions: SongActions, nav: Lo
             }
         }
         item {
-            Shelf("Playlists", onSeeAll = nav.library.takeIf { playlists.isNotEmpty() }) {
+            Shelf("Playlists", onSeeAll = nav.library.takeIf { playlists.isNotEmpty() || liked.isNotEmpty() }) {
+                // Liked songs is the first playlist, as in Apple Music.
+                item(key = "liked") {
+                    LikedTile(liked.size, width = SHELF_TILE) { nav.liked() }
+                }
                 items(playlists, key = { it.id }) { p ->
                     CoverTile(p.name, "${p.songs.size} songs", p.songs.firstOrNull()?.thumbnailUrl, Icons.AutoMirrored.Rounded.QueueMusic, width = SHELF_TILE) { nav.playlist(p.id) }
                 }
                 item(key = "new") {
                     CoverTile("New playlist", "", null, Icons.Rounded.Add, width = SHELF_TILE) { creating = true }
-                }
-            }
-        }
-        if (liked.isNotEmpty()) item {
-            Shelf("Liked songs", onSeeAll = nav.liked) {
-                itemsIndexed(liked.take(20), key = { _, s -> "l${s.videoId}" }) { i, song ->
-                    CoverTile(song.title, song.artist, song.thumbnailUrl, Icons.Rounded.Favorite, width = SHELF_TILE) {
-                        actions.playAll(liked, i, false, "Liked songs")
-                    }
-                }
-            }
-        }
-        if (albums.isNotEmpty()) item {
-            Shelf("Albums", onSeeAll = nav.albums) {
-                items(albums, key = { it.id }) { a ->
-                    CoverTile(a.title, a.artist, a.art, Icons.Rounded.Album, width = SHELF_TILE) { nav.album(a.id) }
                 }
             }
         }
@@ -772,6 +802,61 @@ private fun ReplayCard(onClick: () -> Unit) {
             Text("Your most played songs, artists and albums", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
         }
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
+}
+
+/**
+ * Home's picks, made once each time the app starts and kept until it's closed,
+ * so they don't change while it's being used: 15 albums at random, and the
+ * songs Recommender suggests from what's been played. A library that changes
+ * (songs added or removed) gets new picks.
+ */
+private object HomePicks {
+    private val seed = System.currentTimeMillis()
+    private var albumsFor: Int? = null
+    private var albumPick: List<com.opentune.data.local.LocalMusic.Album> = emptyList()
+    private var songsFor: Int? = null
+    private var songPick: List<com.opentune.data.model.Song> = emptyList()
+
+    @Synchronized
+    fun albums(library: com.opentune.data.local.LocalMusic.Library): List<com.opentune.data.local.LocalMusic.Album> {
+        val ids = library.albums.map { it.id }.toSet()
+        if (albumsFor != ids.hashCode()) {
+            albumsFor = ids.hashCode()
+            albumPick = library.albums.shuffled(kotlin.random.Random(seed)).take(15)
+        }
+        return albumPick
+    }
+
+    @Synchronized
+    fun songs(library: com.opentune.data.local.LocalMusic.Library): List<com.opentune.data.model.Song> {
+        val key = library.tracks.size
+        if (songsFor != key) {
+            songsFor = key
+            songPick = pick(library, null, 20)
+        }
+        return songPick
+    }
+
+    /** What plays after [song] when it's started from Recently played: songs that go with it. */
+    fun after(library: com.opentune.data.local.LocalMusic.Library, song: com.opentune.data.model.Song): List<com.opentune.data.model.Song> =
+        pick(library, song.videoId, 30, seed = System.nanoTime())
+
+    private fun pick(library: com.opentune.data.local.LocalMusic.Library, after: String?, count: Int, seed: Long = this.seed): List<com.opentune.data.model.Song> {
+        val candidates = library.tracks.filter { it.isMusic || it.song.videoId == after }.map { t ->
+            com.opentune.data.recommend.Recommender.Candidate(
+                t.song.videoId, com.opentune.data.local.LocalMusic.splitArtists(t.song.artist), t.song.albumName, t.folder, t.durationMs,
+            )
+        }
+        val listens = com.opentune.data.history.History.records.value.map { r ->
+            val track = library.track(r.videoId)
+            com.opentune.data.recommend.Recommender.Listen(
+                r.videoId, com.opentune.data.local.LocalMusic.splitArtists(r.artist), r.albumName, r.playedAt, r.listenedMs, track?.durationMs ?: 0L,
+            )
+        }
+        val liked = LibraryStore.liked.value.map { it.videoId }.toSet()
+        val ids = com.opentune.data.recommend.Recommender.recommend(candidates, listens, liked, System.currentTimeMillis(), seed, count = count, after = after)
+        return ids.mapNotNull { library.track(it)?.song }
     }
 }
 

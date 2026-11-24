@@ -428,15 +428,19 @@ private fun settingsSections(
             message = runCatching {
                 withContext(Dispatchers.IO) {
                     val doc = buildJsonObject {
+                        // Only the library, nothing about this phone's setup (sound, look, equalizer),
+                        // so the same file can be read by LocalTune on another phone or on Windows.
+                        // Songs are matched there by title and artist; see LocalMusic.relinkSaved.
                         put("app", "LocalTune")
-                        put("version", 1)
-                        put("settings", AppSettings.exportJson())
+                        put("format", "localtune-library")
+                        put("version", 2)
+                        put("exportedAt", System.currentTimeMillis())
                         put("history", History.exportJson())
                         put("library", LibraryStore.exportJson())
                     }
                     context.contentResolver.openOutputStream(uri)?.use { it.write(doc.toString().toByteArray()) }
                 }
-                "Exported settings, history, likes and playlists."
+                "Exported your liked songs, playlists and listening history."
             }.getOrElse { "Export failed: ${it.message}" }
         }
     }
@@ -449,21 +453,20 @@ private fun settingsSections(
                 } as? JsonObject ?: error("this isn't a LocalTune backup")
                 // Only this app's backups (LocalTune's, or OpenTune's from before the rename).
                 val app = (doc["app"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                if (app !in setOf("LocalTune", "OpenTune") || listOf("settings", "history", "library").none { it in doc }) error("this isn't a LocalTune backup")
+                if (app !in setOf("LocalTune", "OpenTune") || listOf("history", "library").none { it in doc }) error("this isn't a LocalTune backup")
+                // Settings in older backups are left alone: a backup carries only the library.
                 // Every part is read first: a damaged file changes nothing, rather than half of it.
                 withContext(Dispatchers.Default) {
-                    doc["settings"]?.let(AppSettings::checkJson)
                     doc["history"]?.let(History::checkJson)
                     doc["library"]?.let(LibraryStore::checkJson)
                 }
                 val (likes, lists) = doc["library"]?.let(LibraryStore::countJson) ?: (0 to 0)
-                doc["settings"]?.let(AppSettings::importJson)
                 doc["history"]?.let(History::importJson)
                 doc["library"]?.let(LibraryStore::importJson)
                 // Songs moved onto this phone's own files (they're numbered differently here).
                 withContext(Dispatchers.IO) { runCatching { LocalMusic.current(context) } }
                 LocalMusic.relinkSaved()
-                "Restored settings, history, $likes liked songs and $lists playlists."
+                "Restored $likes liked songs, $lists playlists and your listening history."
             }.getOrElse { "Import failed: ${it.message}" }
         }
     }
@@ -1063,10 +1066,10 @@ private fun settingsSections(
                     NavRow("Wrapped", onOpenWrapped, summary = "Your listening as an animated story", icon = Icons.Rounded.AutoAwesome)
                 },
                 Entry("Export data", "backup json") {
-                    NavRow("Export data", { exporter.launchSafely(context, "localtune-backup-" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json") }, summary = "Settings, history, likes and playlists, as one JSON file", icon = Icons.Rounded.Upload)
+                    NavRow("Export data", { exporter.launchSafely(context, "localtune-backup-" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json") }, summary = "Liked songs, playlists and listening history, as one file. Settings aren't included", icon = Icons.Rounded.Upload)
                 },
                 Entry("Import data", "restore json") {
-                    NavRow("Import data", { importer.launchSafely(context, arrayOf("application/json")) }, summary = "Replaces the settings, history, likes and playlists on this device", icon = Icons.Rounded.Download)
+                    NavRow("Import data", { importer.launchSafely(context, arrayOf("application/json")) }, summary = "Replaces the liked songs, playlists and history here. Your settings stay as they are", icon = Icons.Rounded.Download)
                 },
                 Entry("Clear listening history", "delete history") {
                     NavRow("Clear listening history", { History.clear(); com.opentune.data.history.ListenedCollections.clear(); message = "Listening history cleared." }, summary = "Removes Recents and Replay data", icon = Icons.Rounded.DeleteSweep)
