@@ -38,6 +38,15 @@ object LocalMusic {
 
     fun isLocal(videoId: String) = videoId.startsWith(PREFIX)
 
+    /** Saved by LocalTune for Windows: the song's file path on that PC (`file:E:\Music\…`). */
+    const val WINDOWS_PREFIX = "file:"
+
+    /**
+     * A song saved on this phone, another phone or a PC: matched to this phone's files by
+     * title and artist when its own id isn't here (see [Library.find]).
+     */
+    fun isFromAnyDevice(videoId: String) = videoId.startsWith(PREFIX) || videoId.startsWith(WINDOWS_PREFIX)
+
     fun contentUri(videoId: String): Uri = ContentUris.withAppendedId(
         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
         videoId.removePrefix(PREFIX).toLong(),
@@ -116,7 +125,7 @@ object LocalMusic {
      * library isn't read yet, null when it's gone. Songs that aren't local pass as they are.
      */
     fun resolve(song: Song): Song? {
-        if (!song.videoId.startsWith(PREFIX)) return song
+        if (!isFromAnyDevice(song.videoId)) return song
         val library = _library.value ?: return song
         return library.find(song)?.let { if (it.videoId == song.videoId) song else it.copy(queueTier = song.queueTier) }
     }
@@ -130,7 +139,7 @@ object LocalMusic {
     fun relinkSaved(library: Library? = _library.value) {
         library ?: return
         fun moved(id: String, title: String, artist: String): Song? {
-            if (!id.startsWith(PREFIX)) return null
+            if (!isFromAnyDevice(id)) return null
             val found = library.find(Song(id, title, artist, null, null)) ?: return null
             return found.takeIf { it.videoId != id }
         }
